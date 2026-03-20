@@ -87,5 +87,28 @@ def game_api():
 def roster_api():
     return jsonify(get_padres_batting_stats())
 
+@app.route("/api/standings")
+def standings_api():
+    url = "https://statsapi.mlb.com/api/v1/standings"
+    params = {
+        "leagueId": 104,
+        "season": 2026,
+        "standingsTypes": "regularSeason",
+        "hydrate": "division"
+    }
+    data = requests.get(url, params=params).json()
+    
+    for division in data.get("records", []):
+        if division.get("division", {}).get("id") == 203:
+            return jsonify([{
+                "name": t["team"]["name"],
+                "wins": t["wins"],
+                "losses": t["losses"],
+                "pct": t["winningPercentage"],
+                "gb": t["gamesBack"]
+            } for t in division["teamRecords"]])
+    
+    return jsonify([])
+
 if __name__ == "__main__":
     app.run(debug=True)

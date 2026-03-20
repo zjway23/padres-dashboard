@@ -85,3 +85,29 @@ tr:hover td { background-color: #1f4a5e; }
   font-size: 12px;
   font-weight: bold;
 }
+
+.top-row {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  margin-bottom: 40px;
+}
+
+.standings-section {
+  background-color: #1a3a4a;
+  border-radius: 12px;
+  padding: 20px;
+  min-width: 300px;
+}
+
+.standings-section h2 {
+  color: #ffc425;
+  margin-bottom: 15px;
+  font-size: 1.3rem;
+  text-align: center;
+}
+
+.padres-row td {
+  color: #ffc425;
+  font-weight: bold;
+}
