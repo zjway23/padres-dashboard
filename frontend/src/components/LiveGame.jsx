@@ -29,6 +29,22 @@ function LiveGame({ live }) {
     </div>
   )
 
+  const getLastPlayColor = () => {
+    if (!live.last_play_event) return "transparent"
+
+    const event = live.last_play_event.toLowerCase()
+
+    // Blue — scoring plays
+    if (live.last_play_scoring || live.last_play_rbi > 0) return "rgba(33, 150, 243, 0.2)"
+
+    // Green — reached base
+    const onBase = ["single", "double", "triple", "home_run", "walk", "hit_by_pitch", "intent_walk", "error", "field_error", "catcher_interf"]
+    if (onBase.some(e => event.includes(e))) return "rgba(76, 175, 80, 0.2)"
+
+    // Red — unproductive out
+    return "rgba(244, 67, 54, 0.2)"
+  }
+
   return (
     <div className="game-card">
       <h2>Today's Game</h2>
@@ -55,12 +71,13 @@ function LiveGame({ live }) {
 
           <div style={{
             marginTop: 16,
-            background: "#0d1f2d",
+            background: getLastPlayColor(),
             borderRadius: 8,
             padding: "10px 14px",
             fontSize: 13,
             color: "#ccc",
-            textAlign: "left"
+            textAlign: "left",
+            transition: "background 0.5s ease"
           }}>
             <p style={{ color: "#ffc425", fontWeight: "bold", marginBottom: 4 }}>Last Play</p>
             <p>{live.last_play}</p>

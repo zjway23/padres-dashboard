@@ -120,8 +120,7 @@ def standings_api():
 def prev_game_api():
     today = date.today().strftime("%Y-%m-%d")
     url = "https://statsapi.mlb.com/api/v1/schedule"
-    
-    # Try regular season first
+
     params = {
         "sportId": 1,
         "teamId": 135,
@@ -138,7 +137,6 @@ def prev_game_api():
             if game["status"]["detailedState"] == "Final":
                 completed.append(game)
 
-    # Fall back to spring training if no regular season games
     if not completed:
         params["gameType"] = "S"
         params["startDate"] = "2026-02-01"
@@ -183,7 +181,18 @@ def live_game_api():
 
     all_plays = plays.get("allPlays", [])
     completed_plays = [p for p in all_plays if p.get("about", {}).get("isComplete", False)]
-    last_play = completed_plays[-1]["result"].get("description", "No description available") if completed_plays else "No plays yet"
+
+    if completed_plays:
+        last = completed_plays[-1]["result"]
+        last_play = last.get("description", "No description available")
+        last_play_event = last.get("eventType", "")
+        last_play_rbi = last.get("rbi", 0)
+        last_play_scoring = completed_plays[-1].get("about", {}).get("isScoringPlay", False)
+    else:
+        last_play = "No plays yet"
+        last_play_event = ""
+        last_play_rbi = 0
+        last_play_scoring = False
 
     offense = linescore.get("offense", {})
     current = plays.get("currentPlay", {})
@@ -205,7 +214,10 @@ def live_game_api():
         "away_score": game["teams"]["away"].get("score", 0),
         "home_score": game["teams"]["home"].get("score", 0),
         "status": game["status"]["detailedState"],
-        "last_play": last_play
+        "last_play": last_play,
+        "last_play_event": last_play_event,
+        "last_play_rbi": last_play_rbi,
+        "last_play_scoring": last_play_scoring
     })
 
 if __name__ == "__main__":
