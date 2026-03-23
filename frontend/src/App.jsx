@@ -1,24 +1,25 @@
 import { useState, useEffect } from "react"
-import GameCard from "./components/GameCard"
+import LiveGame from "./components/LiveGame"
 import RosterTable from "./components/RosterTable"
 import Standings from "./components/Standings"
 import "./App.css"
 
 function App() {
-  const [game, setGame] = useState(null)
+  const [live, setLive] = useState(null)
   const [players, setPlayers] = useState([])
   const [standings, setStandings] = useState([])
+  const [prevGame, setPrevGame] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  const fetchGame = () => {
-    fetch("http://127.0.0.1:5000/api/game")
+  const fetchLive = () => {
+    fetch("http://127.0.0.1:5001/api/live")
       .then(res => res.json())
-      .then(data => setGame(data))
-      .catch(err => console.error("Game fetch error:", err))
+      .then(data => setLive(data))
+      .catch(err => console.error("Live fetch error:", err))
   }
 
   const fetchRoster = () => {
-    fetch("http://127.0.0.1:5000/api/roster")
+    fetch("http://127.0.0.1:5001/api/roster")
       .then(res => res.json())
       .then(data => {
         setPlayers(data)
@@ -28,17 +29,25 @@ function App() {
   }
 
   const fetchStandings = () => {
-    fetch("http://127.0.0.1:5000/api/standings")
+    fetch("http://127.0.0.1:5001/api/standings")
       .then(res => res.json())
       .then(data => setStandings(data))
       .catch(err => console.error("Standings fetch error:", err))
   }
 
+  const fetchPrevGame = () => {
+    fetch("http://127.0.0.1:5001/api/prevgame")
+      .then(res => res.json())
+      .then(data => setPrevGame(data))
+      .catch(err => console.error("Prev game fetch error:", err))
+  }
+
   useEffect(() => {
-    fetchGame()
+    fetchLive()
     fetchRoster()
     fetchStandings()
-    const interval = setInterval(fetchGame, 30000)
+    fetchPrevGame()
+    const interval = setInterval(fetchLive, 15000)
     return () => clearInterval(interval)
   }, [])
 
@@ -46,8 +55,8 @@ function App() {
     <div className="app">
       <h1>⚾ Padres Dashboard</h1>
       <div className="top-row">
-        <GameCard game={game} />
-        <Standings teams={standings} />
+        <LiveGame live={live} />
+        <Standings teams={standings} prevGame={prevGame} />
       </div>
       {loading ? (
         <p className="loading">Loading roster stats...</p>
