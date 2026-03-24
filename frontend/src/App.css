@@ -111,3 +111,42 @@ tr:hover td { background-color: #1f4a5e; }
   color: #ffc425;
   font-weight: bold;
 }
+
+.standings-table-wrapper {
+  border: 3.2px solid #ffc425;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.standings-table-wrapper table {
+  border-radius: 0;
+}
+
+.tabs {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 30px;
+}
+
+.tab {
+  background: transparent;
+  border: 1.5px solid #ffc425;
+  color: #ffc425;
+  padding: 8px 24px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  transition: all 0.2s ease;
+}
+
+.tab:hover {
+  background: rgba(255, 196, 37, 0.1);
+}
+
+.tab.active {
+  background: #ffc425;
+  color: #0d1f2d;
+}

@@ -1,10 +1,25 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
+from flask_sqlalchemy import SQLAlchemy
 import requests
 from datetime import date
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///padres.db"
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+db = SQLAlchemy(app)
+
+# Database model
+class FavoritePlayer(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    player_id = db.Column(db.Integer, unique=True, nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    position = db.Column(db.String(10), nullable=False)
+    team = db.Column(db.String(100), nullable=False)
+
+with app.app_context():
+    db.create_all()
 
 def get_padres_game():
     today = date.today().strftime("%Y-%m-%d")
@@ -55,26 +70,41 @@ def get_padres_batting_stats():
 
         stats_list = stats_data.get("stats", [])
         splits = stats_list[0].get("splits", []) if stats_list else []
-
         if splits:
             s = splits[0]["stat"]
             players.append({
                 "name": name,
                 "position": position,
+                "player_id": person_id,
+                "team": "San Diego Padres",
                 "avg": s.get("avg", "N/A"),
                 "hr": s.get("homeRuns", "N/A"),
                 "rbi": s.get("rbi", "N/A"),
                 "ops": s.get("ops", "N/A"),
+                "obp": s.get("obp", "N/A"),
+                "slg": s.get("slg", "N/A"),
                 "hits": s.get("hits", "N/A"),
-                "games": s.get("gamesPlayed", "N/A")
+                "games": s.get("gamesPlayed", "N/A"),
+                "doubles": s.get("doubles", "N/A"),
+                "triples": s.get("triples", "N/A"),
+                "sb": s.get("stolenBases", "N/A"),
+                "cs": s.get("caughtStealing", "N/A"),
+                "bb": s.get("baseOnBalls", "N/A"),
+                "k": s.get("strikeOuts", "N/A")
             })
         else:
             players.append({
                 "name": name,
                 "position": position,
+                "player_id": person_id,
+                "team": "San Diego Padres",
                 "avg": "N/A", "hr": "N/A",
                 "rbi": "N/A", "ops": "N/A",
-                "hits": "N/A", "games": "N/A"
+                "obp": "N/A", "slg": "N/A",
+                "hits": "N/A", "games": "N/A",
+                "doubles": "N/A", "triples": "N/A",
+                "sb": "N/A", "cs": "N/A",
+                "bb": "N/A", "k": "N/A"
             })
 
     return sorted(players, key=lambda x: x["avg"] if x["avg"] != "N/A" else "0", reverse=True)
@@ -85,7 +115,11 @@ def game_api():
 
 @app.route("/api/roster")
 def roster_api():
-    return jsonify(get_padres_batting_stats())
+    players = get_padres_batting_stats()
+    favorites = {f.player_id for f in FavoritePlayer.query.all()}
+    for p in players:
+        p["favorited"] = p["player_id"] in favorites
+    return jsonify(players)
 
 @app.route("/api/standings")
 def standings_api():
@@ -219,6 +253,231 @@ def live_game_api():
         "last_play_rbi": last_play_rbi,
         "last_play_scoring": last_play_scoring
     })
+
+@app.route("/api/favorites", methods=["GET"])
+def get_favorites():
+    favorites = FavoritePlayer.query.all()
+    result = []
+    for f in favorites:
+        stats_data = requests.get(
+            f"https://statsapi.mlb.com/api/v1/people/{f.player_id}/stats",
+            params={"stats": "season", "group": "hitting", "season": 2025}
+        ).json()
+        stats_list = stats_data.get("stats", [])
+        splits = stats_list[0].get("splits", []) if stats_list else []
+
+        if splits:
+            s = splits[0]["stat"]
+            result.append({
+                "player_id": f.player_id,
+                "name": f.name,
+                "position": f.position,
+                "team": f.team,
+                "favorited": True,
+                "avg": s.get("avg", "N/A"),
+                "hr": s.get("homeRuns", "N/A"),
+                "rbi": s.get("rbi", "N/A"),
+                "ops": s.get("ops", "N/A"),
+                "obp": s.get("obp", "N/A"),
+                "slg": s.get("slg", "N/A"),
+                "hits": s.get("hits", "N/A"),
+                "games": s.get("gamesPlayed", "N/A"),
+                "doubles": s.get("doubles", "N/A"),
+                "triples": s.get("triples", "N/A"),
+                "sb": s.get("stolenBases", "N/A"),
+                "cs": s.get("caughtStealing", "N/A"),
+                "bb": s.get("baseOnBalls", "N/A"),
+                "k": s.get("strikeOuts", "N/A")
+            })
+        else:
+            result.append({
+                "player_id": f.player_id,
+                "name": f.name,
+                "position": f.position,
+                "team": f.team,
+                "favorited": True,
+                "avg": "N/A", "hr": "N/A",
+                "rbi": "N/A", "ops": "N/A",
+                "obp": "N/A", "slg": "N/A",
+                "hits": "N/A", "games": "N/A",
+                "doubles": "N/A", "triples": "N/A",
+                "sb": "N/A", "cs": "N/A",
+                "bb": "N/A", "k": "N/A"
+            })
+    return jsonify(result)
+
+@app.route("/api/favorites", methods=["POST"])
+def add_favorite():
+    data = request.get_json(force=True)
+    print("Received data:", data)  # debug line
+    if not data:
+        return jsonify({"error": "No data"}), 400
+    
+    existing = FavoritePlayer.query.filter_by(player_id=data["player_id"]).first()
+    if existing:
+        db.session.delete(existing)
+        db.session.commit()
+        return jsonify({"favorited": False})
+    
+    new_fav = FavoritePlayer(
+        player_id=data["player_id"],
+        name=data["name"],
+        position=data["position"],
+        team=data["team"]
+    )
+    db.session.add(new_fav)
+    db.session.commit()
+    return jsonify({"favorited": True})
+
+@app.route("/api/search")
+def search_players():
+    name = request.args.get("name", "")
+    if not name or len(name) < 3:
+        return jsonify([])
+    
+    url = "https://statsapi.mlb.com/api/v1/people/search"
+    data = requests.get(url, params={
+        "names": name,
+        "sportId": 1,
+        "hydrate": "currentTeam"
+    }).json()
+    
+    results = []
+    for player in data.get("people", [])[:5]:  # limit to top 5
+        person_id = player["id"]
+        full_name = player["fullName"]
+        position = player.get("primaryPosition", {}).get("abbreviation", "N/A")
+        
+        # Get team properly
+        team = "Unknown"
+        current_team = player.get("currentTeam", {})
+        if current_team:
+            # Fetch full team name
+            team_data = requests.get(f"https://statsapi.mlb.com/api/v1/teams/{current_team.get('id', '')}").json()
+            team = team_data.get("teams", [{}])[0].get("name", "Unknown")
+
+        stats_data = requests.get(
+            f"https://statsapi.mlb.com/api/v1/people/{person_id}/stats",
+            params={"stats": "season", "group": "hitting", "season": 2025}
+        ).json()
+        stats_list = stats_data.get("stats", [])
+        splits = stats_list[0].get("splits", []) if stats_list else []
+
+        if splits:
+            s = splits[0]["stat"]
+            results.append({
+                "player_id": person_id,
+                "name": full_name,
+                "position": position,
+                "team": team,
+                "avg": s.get("avg", "N/A"),
+                "hr": s.get("homeRuns", "N/A"),
+                "rbi": s.get("rbi", "N/A"),
+                "ops": s.get("ops", "N/A"),
+                "obp": s.get("obp", "N/A"),
+                "slg": s.get("slg", "N/A"),
+                "hits": s.get("hits", "N/A"),
+                "games": s.get("gamesPlayed", "N/A"),
+                "doubles": s.get("doubles", "N/A"),
+                "triples": s.get("triples", "N/A"),
+                "sb": s.get("stolenBases", "N/A"),
+                "cs": s.get("caughtStealing", "N/A"),
+                "bb": s.get("baseOnBalls", "N/A"),
+                "k": s.get("strikeOuts", "N/A")
+            })
+        else:
+            results.append({
+                "player_id": person_id,
+                "name": full_name,
+                "position": position,
+                "team": team,
+                "avg": "N/A", "hr": "N/A",
+                "rbi": "N/A", "ops": "N/A",
+                "obp": "N/A", "slg": "N/A",
+                "hits": "N/A", "games": "N/A",
+                "doubles": "N/A", "triples": "N/A",
+                "sb": "N/A", "cs": "N/A",
+                "bb": "N/A", "k": "N/A"
+            })
+    
+    return jsonify(results)
+@app.route("/api/playergame/<int:player_id>")
+def player_game_detail(player_id):
+    url = f"https://statsapi.mlb.com/api/v1/people/{player_id}/stats"
+    
+    all_splits = []
+    for season, game_type in [("2026", "R"), ("2026", "S"), ("2025", "R")]:
+        params = {
+            "stats": "gameLog",
+            "group": "hitting",
+            "season": season,
+            "gameType": game_type
+        }
+        data = requests.get(url, params=params).json()
+        stats_list = data.get("stats", [])
+        if stats_list:
+            splits = stats_list[0].get("splits", [])
+            if splits:
+                all_splits.extend(splits)
+
+    if not all_splits:
+        return jsonify(None)
+
+    # Return game list WITHOUT play by play (fast)
+    games = []
+    for last in all_splits[-10:]:  # only last 10 games
+        s = last["stat"]
+        games.append({
+            "game_pk": last.get("game", {}).get("gamePk"),
+            "game_date": last.get("date", "N/A"),
+            "opponent": last.get("opponent", {}).get("name", "N/A"),
+            "stat_line": {
+                "ab": s.get("atBats", 0),
+                "h": s.get("hits", 0),
+                "bb": s.get("baseOnBalls", 0),
+                "k": s.get("strikeOuts", 0),
+                "hr": s.get("homeRuns", 0),
+                "doubles": s.get("doubles", 0),
+                "triples": s.get("triples", 0),
+                "rbi": s.get("rbi", 0),
+                "runs": s.get("runs", 0),
+                "sb": s.get("stolenBases", 0)
+            }
+        })
+
+    return jsonify(games)
+
+@app.route("/api/playergame/<int:player_id>/<int:game_pk>")
+def player_game_plays(player_id, game_pk):
+    live_data = requests.get(f"https://statsapi.mlb.com/api/v1.1/game/{game_pk}/feed/live").json()
+    all_plays = live_data["liveData"]["plays"]["allPlays"]
+    player_plays = [p for p in all_plays
+                   if p.get("matchup", {}).get("batter", {}).get("id") == player_id
+                   and p.get("about", {}).get("isComplete", False)]
+
+    plays_detail = []
+    for play in player_plays:
+        result = play["result"]
+        event = result.get("event", "N/A")
+        description = result.get("description", "")
+        hit_data = None
+        for pe in reversed(play.get("playEvents", [])):
+            if pe.get("hitData"):
+                hit_data = pe["hitData"]
+                break
+        play_info = {"event": event, "description": description}
+        if hit_data:
+            play_info["ev"] = hit_data.get("launchSpeed", None)
+            play_info["la"] = hit_data.get("launchAngle", None)
+            play_info["dist"] = hit_data.get("totalDistance", None)
+            play_info["trajectory"] = hit_data.get("trajectory", None)
+            play_info["hardness"] = hit_data.get("hardness", None)
+            play_info["location"] = hit_data.get("location", None)
+        plays_detail.append(play_info)
+
+    return jsonify(plays_detail)
+
+
 
 if __name__ == "__main__":
     app.run(debug=True, port=5001)
