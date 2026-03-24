@@ -22,14 +22,14 @@ function App() {
   const [nlPlayoff, setNlPlayoff] = useState([])
 
   const fetchNlPlayoff = () => {
-    fetch("http://127.0.0.1:5001/api/nlplayoff")
+    fetch(`https://padres-dashboard.onrender.com/api/nlplayoff`)
       .then(res => res.json())
       .then(data => setNlPlayoff(data))
       .catch(err => console.error("NL Playoff fetch error:", err))
   }
 
   const fetchWildcard = () => {
-    fetch("http://127.0.0.1:5001/api/wildcard")
+    fetch(`https://padres-dashboard.onrender.com/api/wildcard`)
       .then(res => res.json())
       .then(data => setWildcard(data))
       .catch(err => console.error("Wildcard fetch error:", err))
