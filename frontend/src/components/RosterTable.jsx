@@ -1,6 +1,7 @@
 function RosterTable({ players, onToggleFavorite }) {
-  const favorites = players.filter(p => p.favorited)
-  const rest = players.filter(p => !p.favorited)
+  const padresOnly = players.filter(p => p.team === "San Diego Padres")
+  const favorites = padresOnly.filter(p => p.favorited)
+  const rest = padresOnly.filter(p => !p.favorited)
   const sorted = [...favorites, ...rest]
 
   return (

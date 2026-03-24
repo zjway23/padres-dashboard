@@ -23,7 +23,7 @@ function Diamond({ first, second, third }) {
 
 function LiveGame({ live }) {
   if (!live) return (
-    <div className="game-card">
+    <div className="game-card" style={{ display: "flex", flexDirection: "column" }}>
       <h2>Today's Game</h2>
       <p>No game today.</p>
     </div>
@@ -31,17 +31,10 @@ function LiveGame({ live }) {
 
   const getLastPlayColor = () => {
     if (!live.last_play_event) return "transparent"
-
     const event = live.last_play_event.toLowerCase()
-
-    // Blue — scoring plays
     if (live.last_play_scoring || live.last_play_rbi > 0) return "rgba(33, 150, 243, 0.2)"
-
-    // Green — reached base
     const onBase = ["single", "double", "triple", "home_run", "walk", "hit_by_pitch", "intent_walk", "error", "field_error", "catcher_interf"]
     if (onBase.some(e => event.includes(e))) return "rgba(76, 175, 80, 0.2)"
-
-    // Red — unproductive out
     return "rgba(244, 67, 54, 0.2)"
   }
 
@@ -83,6 +76,36 @@ function LiveGame({ live }) {
             <p>{live.last_play}</p>
           </div>
         </>
+      )}
+
+      {live.status === "Final" && live.scoring_summary && live.scoring_summary.length > 0 && (
+        <div style={{
+          marginTop: 16,
+          flex: 1,
+          overflowY: "auto",
+          textAlign: "left",
+          minHeight: 0
+        }}>
+          <p style={{ color: "#ffc425", fontWeight: "bold", fontSize: 13, marginBottom: 8 }}>
+            Scoring Plays
+          </p>
+          {live.scoring_summary.map((play, i) => (
+            <div key={i} style={{
+              fontSize: 12,
+              padding: "6px 0",
+              borderBottom: "1px solid #0d1f2d",
+              color: "#ccc"
+            }}>
+              <span style={{ color: "#ffc425", fontWeight: "bold", marginRight: 8, fontSize: 11 }}>
+                {play.inning}
+              </span>
+              <span style={{ marginRight: 8, fontWeight: "bold", color: "white" }}>
+                {play.away_score}-{play.home_score}
+              </span>
+              {play.description}
+            </div>
+          ))}
+        </div>
       )}
     </div>
   )

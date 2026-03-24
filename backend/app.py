@@ -215,6 +215,16 @@ def live_game_api():
 
     all_plays = plays.get("allPlays", [])
     completed_plays = [p for p in all_plays if p.get("about", {}).get("isComplete", False)]
+    # Get scoring plays
+    scoring_plays = [p for p in all_plays if p.get("about", {}).get("isScoringPlay", False)]
+    scoring_summary = []
+    for play in scoring_plays:
+        scoring_summary.append({
+            "inning": f"{'Top' if play['about']['isTopInning'] else 'Bot'} {play['about']['inning']}",
+            "description": play["result"].get("description", ""),
+            "away_score": play["result"].get("awayScore", 0),
+            "home_score": play["result"].get("homeScore", 0)
+        })
 
     if completed_plays:
         last = completed_plays[-1]["result"]
@@ -251,7 +261,8 @@ def live_game_api():
         "last_play": last_play,
         "last_play_event": last_play_event,
         "last_play_rbi": last_play_rbi,
-        "last_play_scoring": last_play_scoring
+        "last_play_scoring": last_play_scoring,
+        "scoring_summary": scoring_summary
     })
 
 @app.route("/api/favorites", methods=["GET"])

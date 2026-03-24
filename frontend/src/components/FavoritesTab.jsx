@@ -28,18 +28,27 @@ function getSBDisplay(p) {
 }
 
 function buildStatLine(s) {
-  if (!s) return "No data"
-  const parts = [`${s.h}/${s.ab}`]
-  if (s.bb > 0) parts.push(`${s.bb}BB`)
-  if (s.k > 0) parts.push(`${s.k}K`)
-  if (s.doubles > 0) parts.push(`${s.doubles}2B`)
-  if (s.triples > 0) parts.push(`${s.triples}3B`)
-  if (s.hr > 0) parts.push(`${s.hr}HR`)
-  if (s.rbi > 0) parts.push(`${s.rbi}RBI`)
-  if (s.runs > 0) parts.push(`${s.runs}R`)
-  if (s.sb > 0) parts.push(`${s.sb}SB`)
-  return parts.join("  ")
-}
+    if (!s) return "No data"
+    
+    const n = (num, label) => num > 1 ? `${num}${label}` : label
+  
+    const hits = []
+    if (s.hr > 0) hits.push(n(s.hr, "HR"))
+    if (s.doubles > 0) hits.push(n(s.doubles, "2B"))
+    if (s.triples > 0) hits.push(n(s.triples, "3B"))
+    const singles = s.h - s.hr - s.doubles - s.triples
+    if (singles > 0) hits.push(n(singles, "1B"))
+  
+    const parts = [`${s.h} for ${s.ab}`]
+    if (hits.length > 0) parts.push(hits.join(", "))
+    if (s.bb > 0) parts.push(n(s.bb, "BB"))
+    if (s.k > 0) parts.push(n(s.k, "K"))
+    if (s.rbi > 0) parts.push(n(s.rbi, "RBI"))
+    if (s.runs > 0) parts.push(n(s.runs, "R"))
+    if (s.sb > 0) parts.push(n(s.sb, "SB"))
+  
+    return parts.join(" · ")
+  }
 
 const LOCATION_MAP = {
     "1": "Pitcher", "2": "Catcher", "3": "1B", "4": "2B",
@@ -162,14 +171,26 @@ function PlayerLastGame({ playerId }) {
       fetchPlays(playerId, games[newIndex].game_pk)
     }
   
-    if (loadingGames) return <p style={{ color: "#aaa", fontSize: 13, marginTop: 10 }}>Loading games...</p>
+    if (loadingGames) return (
+        <div style={{
+          marginTop: 14,
+          background: "#0d1f2d",
+          borderRadius: 8,
+          padding: "12px 14px",
+          minHeight: 80,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center"
+        }}>
+          <p style={{ color: "#aaa", fontSize: 13 }}>Loading game log...</p>
+        </div>
+      )
     if (!games.length) return <p style={{ color: "#aaa", fontSize: 13, marginTop: 10 }}>No recent game data</p>
   
     const gameData = games[index]
   
     return (
-      <div style={{ marginTop: 14, background: "#0d1f2d", borderRadius: 8, padding: "12px 14px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+        <div style={{ marginTop: 14, background: "#0d1f2d", borderRadius: 8, padding: "12px 14px", minHeight: 120 }}>           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
           <button
             onClick={() => navigate(Math.max(0, index - 1))}
             disabled={index === 0}
@@ -217,10 +238,11 @@ function PlayerCard({ p, onToggleFavorite }) {
 
   return (
     <div style={{
-      background: "#1a3a4a",
-      borderRadius: 12,
-      padding: 20,
-      marginBottom: 16
+    background: "#1a3a4a",
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 16,
+    minHeight: 280
     }}>
       <div style={{
         display: "flex",
@@ -270,130 +292,24 @@ function PlayerCard({ p, onToggleFavorite }) {
 }
 
 function FavoritesTab({ players, onToggleFavorite }) {
-  const [query, setQuery] = useState("")
-  const [results, setResults] = useState([])
-  const [searching, setSearching] = useState(false)
-  const favorites = players.filter(p => p.favorited)
-  const favoritedIds = new Set(players.filter(p => p.favorited).map(p => p.player_id))
-
-  const handleSearch = () => {
-    if (!query.trim()) return
-    setSearching(true)
-    fetch(`http://127.0.0.1:5001/api/search?name=${encodeURIComponent(query)}`)
-      .then(res => res.json())
-      .then(data => {
-        setResults(data)
-        setSearching(false)
-      })
-      .catch(() => setSearching(false))
-  }
-
-  const handleToggleFromSearch = (player) => {
-    onToggleFavorite({ ...player, favorited: favoritedIds.has(player.player_id) })
-  }
-
-  return (
-    <div>
-      <div style={{
-        background: "#1a3a4a",
-        borderRadius: 12,
-        padding: 20,
-        maxWidth: 500,
-        margin: "0 auto 30px auto"
-      }}>
-        <h2 style={{ color: "#ffc425", marginBottom: 12, fontSize: "1.1rem" }}>
-          🔍 Search Any MLB Player
-        </h2>
-        <div style={{ display: "flex", gap: 8 }}>
-          <input
-            type="text"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && handleSearch()}
-            placeholder="Search any MLB player..."
-            style={{
-              flex: 1,
-              padding: "8px 12px",
-              borderRadius: 8,
-              border: "1.5px solid #ffc425",
-              background: "#0d1f2d",
-              color: "white",
-              fontSize: 14,
-              outline: "none"
-            }}
-          />
-          <button
-            onClick={handleSearch}
-            style={{
-              background: "#ffc425",
-              color: "#0d1f2d",
-              border: "none",
-              borderRadius: 8,
-              padding: "8px 16px",
-              fontWeight: "bold",
-              cursor: "pointer",
-              fontSize: 14
-            }}
-          >
-            {searching ? "..." : "Search"}
-          </button>
+    const favorites = players.filter(p => p.favorited)
+  
+    return (
+      <div>
+        <div style={{ maxWidth: 960, margin: "0 auto" }}>
+          <h2 style={{ color: "#ffc425", marginBottom: 16, fontSize: "1.3rem" }}>⭐ Favorite Players</h2>
+          {favorites.length === 0 ? (
+            <p style={{ textAlign: "center", color: "#aaa", padding: 20 }}>
+              No favorites yet — click ☆ next to any player in the Dashboard tab or use the 🔍 search to add players!
+            </p>
+          ) : (
+            favorites.map((p, i) => (
+              <PlayerCard key={i} p={p} onToggleFavorite={onToggleFavorite} />
+            ))
+          )}
         </div>
-
-        {results.length > 0 && (
-          <div style={{ marginTop: 12 }}>
-            {results.map((p, i) => {
-              const isFav = favoritedIds.has(p.player_id)
-              return (
-                <div key={i} style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "8px 0",
-                  borderBottom: i < results.length - 1 ? "1px solid #0d1f2d" : "none",
-                  fontSize: 13
-                }}>
-                  <div>
-                    <span style={{ fontWeight: "bold" }}>{p.name}</span>
-                    <span style={{ color: "#aaa", marginLeft: 8 }}>
-                      {p.position} · {p.team === "Unknown" ? "Prospect" : p.team}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => handleToggleFromSearch(p)}
-                    style={{
-                      background: isFav ? "rgba(255,196,37,0.2)" : "transparent",
-                      border: "1.5px solid #ffc425",
-                      color: "#ffc425",
-                      borderRadius: 6,
-                      padding: "4px 10px",
-                      cursor: "pointer",
-                      fontSize: 13,
-                      fontWeight: "bold"
-                    }}
-                  >
-                    {isFav ? "★ Remove" : "☆ Add"}
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-        )}
       </div>
-
-      <div style={{ maxWidth: 960, margin: "0 auto" }}>
-        <h2 style={{ color: "#ffc425", marginBottom: 16, fontSize: "1.3rem" }}>⭐ Favorite Players</h2>
-        {favorites.length === 0 ? (
-          <p style={{ textAlign: "center", color: "#aaa", padding: 20 }}>
-            No favorites yet — search for a player above or click ☆ in the Dashboard tab!
-          </p>
-        ) : (
-          favorites.map((p, i) => (
-            <PlayerCard key={i} p={p} onToggleFavorite={onToggleFavorite} />
-          ))
-        )}
-      </div>
-    </div>
-  )
-}
-
-export default FavoritesTab
+    )
+  }
+  
+  export default FavoritesTab
