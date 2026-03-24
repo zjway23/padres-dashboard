@@ -32,7 +32,7 @@ function App() {
   const handleGlobalSearch = () => {
     if (!searchQuery.trim()) return
     setSearching(true)
-    fetch(`http://127.0.0.1:5001/api/search?name=${encodeURIComponent(searchQuery)}`)
+    fetch(`https://padres-dashboard.onrender.com/api/search?name=${encodeURIComponent(searchQuery)}`)
       .then(res => res.json())
       .then(data => {
         setSearchResults(data)
@@ -42,14 +42,14 @@ function App() {
   }
 
   const fetchLive = () => {
-    fetch("http://127.0.0.1:5001/api/live")
+    fetch("https://padres-dashboard.onrender.com/api/live")
       .then(res => res.json())
       .then(data => setLive(data))
       .catch(err => console.error("Live fetch error:", err))
   }
 
   const fetchFavoritesWithRoster = (rosterData) => {
-    fetch("http://127.0.0.1:5001/api/favorites")
+    fetch("https://padres-dashboard.onrender.com/api/favorites")
       .then(res => res.json())
       .then(favs => {
         const existingIds = new Set(rosterData.map(p => p.player_id))
@@ -64,7 +64,7 @@ function App() {
   }
 
   const fetchRoster = () => {
-    fetch("http://127.0.0.1:5001/api/roster")
+    fetch("https://padres-dashboard.onrender.com/api/roster")
       .then(res => res.json())
       .then(data => {
         setPlayers(data)
@@ -75,14 +75,14 @@ function App() {
   }
 
   const fetchStandings = () => {
-    fetch("http://127.0.0.1:5001/api/standings")
+    fetch("https://padres-dashboard.onrender.com/api/standings")
       .then(res => res.json())
       .then(data => setStandings(data))
       .catch(err => console.error("Standings fetch error:", err))
   }
 
   const fetchPrevGame = () => {
-    fetch("http://127.0.0.1:5001/api/prevgame")
+    fetch("https://padres-dashboard.onrender.com/api/prevgame")
       .then(res => res.json())
       .then(data => setPrevGame(data))
       .catch(err => console.error("Prev game fetch error:", err))
@@ -100,7 +100,7 @@ function App() {
       }
     })
 
-    fetch("http://127.0.0.1:5001/api/favorites", {
+    fetch("https://padres-dashboard.onrender.com/api/favorites", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

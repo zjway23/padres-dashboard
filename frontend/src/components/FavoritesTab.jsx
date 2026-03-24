@@ -139,7 +139,7 @@ function PlayerLastGame({ playerId }) {
     const [loadingPlays, setLoadingPlays] = useState(false)
   
     useEffect(() => {
-      fetch(`http://127.0.0.1:5001/api/playergame/${playerId}`)
+      fetch(`https://padres-dashboard.onrender.com/api/playergame/${playerId}`)
         .then(res => res.json())
         .then(data => {
           if (data && data.length > 0) {
@@ -157,7 +157,7 @@ function PlayerLastGame({ playerId }) {
       if (!gamePk) return
       setLoadingPlays(true)
       setPlays([])
-      fetch(`http://127.0.0.1:5001/api/playergame/${pid}/${gamePk}`)
+      fetch(`https://padres-dashboard.onrender.com/api/playergame/${pid}/${gamePk}`)
         .then(res => res.json())
         .then(data => {
           setPlays(data)
