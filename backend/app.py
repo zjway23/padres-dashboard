@@ -65,7 +65,7 @@ def get_padres_batting_stats():
 
         stats_data = requests.get(
             f"https://statsapi.mlb.com/api/v1/people/{person_id}/stats",
-            params={"stats": "season", "group": "hitting", "season": 2025}
+            params={"stats": "season", "group": "hitting", "season": 2026}
         ).json()
 
         stats_list = stats_data.get("stats", [])
@@ -281,7 +281,7 @@ def get_favorites():
     for f in favorites:
         stats_data = requests.get(
             f"https://statsapi.mlb.com/api/v1/people/{f.player_id}/stats",
-            params={"stats": "season", "group": "hitting", "season": 2025}
+            params={"stats": "season", "group": "hitting", "season": 2026}
         ).json()
         stats_list = stats_data.get("stats", [])
         splits = stats_list[0].get("splits", []) if stats_list else []
@@ -378,7 +378,7 @@ def search_players():
 
         stats_data = requests.get(
             f"https://statsapi.mlb.com/api/v1/people/{person_id}/stats",
-            params={"stats": "season", "group": "hitting", "season": 2025}
+            params={"stats": "season", "group": "hitting", "season": 2026}
         ).json()
         stats_list = stats_data.get("stats", [])
         splits = stats_list[0].get("splits", []) if stats_list else []

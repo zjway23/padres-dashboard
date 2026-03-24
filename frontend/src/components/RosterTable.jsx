@@ -6,7 +6,7 @@ function RosterTable({ players, onToggleFavorite }) {
 
   return (
     <div className="roster-section">
-      <h2>2025 Batting Stats</h2>
+      <h2>2026 Batting Stats</h2>
       <table>
         <thead>
           <tr>
