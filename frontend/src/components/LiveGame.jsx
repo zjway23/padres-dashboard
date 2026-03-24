@@ -21,16 +21,9 @@ function Diamond({ first, second, third }) {
   )
 }
 
-function LiveGame({ live }) {
-  if (!live) return (
-    <div className="game-card" style={{ display: "flex", flexDirection: "column" }}>
-      <h2>Today's Game</h2>
-      <p>No game today.</p>
-    </div>
-  )
-
+function LiveGame({ live, prevGame }) {
   const getLastPlayColor = () => {
-    if (!live.last_play_event) return "transparent"
+    if (!live || !live.last_play_event) return "transparent"
     const event = live.last_play_event.toLowerCase()
     if (live.last_play_scoring || live.last_play_rbi > 0) return "rgba(33, 150, 243, 0.2)"
     const onBase = ["single", "double", "triple", "home_run", "walk", "hit_by_pitch", "intent_walk", "error", "field_error", "catcher_interf"]
@@ -38,8 +31,72 @@ function LiveGame({ live }) {
     return "rgba(244, 67, 54, 0.2)"
   }
 
+  const PrevGameSection = () => {
+    if (!prevGame) return null
+    const padresScore = prevGame.home.includes("Padres") ? prevGame.home_score : prevGame.away_score
+    const oppScore = prevGame.home.includes("Padres") ? prevGame.away_score : prevGame.home_score
+    const padresWon = padresScore > oppScore
+
+    return (
+      <div style={{
+        marginTop: 16,
+        background: "#0d1f2d",
+        borderRadius: 8,
+        padding: "12px 14px",
+        textAlign: "left",
+        fontSize: 13
+      }}>
+        <p style={{ color: "#ffc425", fontWeight: "bold", marginBottom: 8 }}>
+          Previous Game {prevGame.game_type ? `(${prevGame.game_type})` : ""}
+        </p>
+        {[
+          { name: prevGame.away, score: prevGame.away_score },
+          { name: prevGame.home, score: prevGame.home_score }
+        ].map((team, i) => {
+          const isPadres = team.name.includes("Padres")
+          const won = isPadres ? padresWon : !padresWon
+          return (
+            <div key={i} style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "4px 0",
+              borderBottom: i === 0 ? "1px solid #1a3a4a" : "none"
+            }}>
+              <span style={{ color: won ? "#4caf50" : "#f44336", fontWeight: "bold", width: 16 }}>
+                {won ? "W" : "L"}
+              </span>
+              <span style={{
+                color: isPadres ? "#ffc425" : "white",
+                fontWeight: isPadres ? "bold" : "normal",
+                minWidth: 160
+              }}>
+                {team.name}
+              </span>
+              <span style={{ fontWeight: "bold" }}>{team.score}</span>
+            </div>
+          )
+        })}
+        <p style={{ color: "#aaa", fontSize: 11, marginTop: 8 }}>
+          {(() => {
+            const d = new Date(prevGame.date + "T12:00:00")
+            return d.toLocaleDateString("en-US", { weekday: "long", month: "numeric", day: "numeric", year: "numeric" })
+          })()}
+        </p>
+      </div>
+    )
+  }
+
+  if (!live) return (
+    <div className="game-card" style={{ display: "flex", flexDirection: "column" }}>
+      <h2>Today's Game</h2>
+      <p>No game today.</p>
+      <PrevGameSection />
+    </div>
+  )
+
   return (
-    <div className="game-card">
+    <div className="game-card" style={{ display: "flex", flexDirection: "column" }}>
       <h2>Today's Game</h2>
       <p className="matchup">{live.away} @ {live.home}</p>
       <div className="score">{live.away_score} - {live.home_score}</div>
@@ -107,6 +164,8 @@ function LiveGame({ live }) {
           ))}
         </div>
       )}
+
+      <PrevGameSection />
     </div>
   )
 }

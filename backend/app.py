@@ -497,6 +497,82 @@ def player_game_plays(player_id, game_pk):
 
     return jsonify(plays_detail)
 
+@app.route("/api/wildcard")
+def wildcard_api():
+    url = "https://statsapi.mlb.com/api/v1/standings"
+    params = {
+        "leagueId": 104,
+        "season": 2026,
+        "standingsTypes": "wildCard",
+        "hydrate": "division,team"
+    }
+    data = requests.get(url, params=params).json()
+    
+    teams = []
+    for record in data.get("records", []):
+        for t in record.get("teamRecords", []):
+            teams.append({
+                "name": t["team"]["name"],
+                "abbreviation": t["team"].get("abbreviation", ""),
+                "division": t["team"].get("division", {}).get("name", ""),
+                "wc_rank": int(t.get("wildCardRank", 99)),
+                "wins": t["wins"],
+                "losses": t["losses"],
+                "pct": t["winningPercentage"],
+                "wc_gb": t.get("wildCardGamesBack", "-")
+            })
+    
+    teams.sort(key=lambda x: x["wc_rank"])
+    return jsonify(teams)
+
+
+@app.route("/api/nlplayoff")
+def nl_playoff_api():
+    url = "https://statsapi.mlb.com/api/v1/standings"
+    params = {
+        "leagueId": 104,
+        "season": 2026,
+        "standingsTypes": "regularSeason",
+        "hydrate": "division,team"
+    }
+    data = requests.get(url, params=params).json()
+
+    teams = []
+    for record in data.get("records", []):
+        for t in record["teamRecords"]:
+            teams.append({
+                "name": t["team"]["name"],
+                "abbreviation": t["team"].get("abbreviation", ""),
+                "division": t["team"].get("division", {}).get("name", ""),
+                "league_rank": int(t.get("leagueRank", 99)),
+                "division_rank": int(t.get("divisionRank", 99)),
+                "division_leader": t.get("divisionLeader", False),
+                "wins": t["wins"],
+                "losses": t["losses"],
+                "pct": t["winningPercentage"],
+                "gb": t.get("gamesBack", "-"),
+                "wc_gb": t.get("wildCardGamesBack", "-")
+            })
+
+    teams.sort(key=lambda x: x["league_rank"])
+    
+    # Assign playoff seeds
+    div_leaders = [t for t in teams if t["division_leader"]][:3]
+    div_leader_names = {t["name"] for t in div_leaders}
+    wild_cards = [t for t in teams if t["name"] not in div_leader_names][:3]
+    eliminated = [t for t in teams if t["name"] not in div_leader_names and t not in wild_cards]
+
+    for i, t in enumerate(div_leaders):
+        t["seed"] = i + 1
+        t["category"] = "division"
+    for i, t in enumerate(wild_cards):
+        t["seed"] = i + 4
+        t["category"] = "wildcard"
+    for t in eliminated:
+        t["seed"] = None
+        t["category"] = "eliminated"
+
+    return jsonify(div_leaders + wild_cards + eliminated)
 
 
 if __name__ == "__main__":

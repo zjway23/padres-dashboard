@@ -1,47 +1,4 @@
-function Standings({ teams, prevGame }) {
-  const getPadresResult = () => {
-    if (!prevGame) return null
-    const padresHome = prevGame.home.includes("Padres")
-    const padresScore = padresHome ? prevGame.home_score : prevGame.away_score
-    const oppScore = padresHome ? prevGame.away_score : prevGame.home_score
-    return padresScore > oppScore ? "W" : "L"
-  }
-
-  const result = getPadresResult()
-  const TeamRow = ({ name, score, isHome }) => {
-      const isPadres = name.includes("Padres")
-      const won = result === "W" ? isPadres : !isPadres
-      return (
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "6px 0",
-          borderBottom: isHome ? "none" : "1px solid #0d1f2d",
-          fontSize: 13
-        }}>
-          <span style={{
-            color: won ? "#4caf50" : "#f44336",
-            fontWeight: "bold",
-            width: 16,
-            flexShrink: 0
-          }}>
-            {won ? "W" : "L"}
-          </span>
-          <span style={{
-            color: isPadres ? "#ffc425" : "white",
-            fontWeight: isPadres ? "bold" : "normal",
-            minWidth: 0, width: "fit-content", flexShrink: 1
-          }}>
-            {name}
-          </span>
-          <span style={{ fontWeight: "bold" }}>
-            {score}
-          </span>
-        </div>
-      )
-    }
-
+function Standings({ teams, nlPlayoff }) {
   return (
     <div className="standings-section">
       <h2>NL West Standings</h2>
@@ -72,21 +29,94 @@ function Standings({ teams, prevGame }) {
         </table>
       </div>
 
-      {prevGame && (
-        <div style={{
-          marginTop: 16,
-          background: "#0d1f2d",
-          borderRadius: 8,
-          padding: "12px 14px",
-          fontSize: 13,
-          textAlign: "left"
-        }}>
-          <p style={{ color: "#ffc425", fontWeight: "bold", marginBottom: 10 }}>
-            Previous Game {prevGame.game_type ? `(${prevGame.game_type})` : ""}
-          </p>
-          <TeamRow name={prevGame.away} score={prevGame.away_score} isHome={false} />
-          <TeamRow name={prevGame.home} score={prevGame.home_score} isHome={true} />
-          <p style={{ color: "#aaa", fontSize: 11, marginTop: 8 }}>{prevGame.date}</p>
+      {nlPlayoff && nlPlayoff.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <h2 style={{ color: "#ffc425", marginBottom: 12, fontSize: "1.1rem", textAlign: "center" }}>
+            NL Playoff Picture
+          </h2>
+          <div style={{ border: "3.2px solid #ffc425", borderRadius: 10, overflow: "hidden" }}>
+            {(() => {
+              const divLeaders = nlPlayoff.filter(t => t.category === "division")
+              const wildCards = nlPlayoff.filter(t => t.category === "wildcard")
+              const eliminated = nlPlayoff.filter(t => t.category === "eliminated")
+
+              const Divider = ({ label }) => (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 8px", background: "#0d1f2d" }}>
+                  <div style={{ flex: 1, height: 1, background: "#ffc425", opacity: 0.3 }} />
+                  <span style={{ color: "#ffc425", fontSize: 9, fontWeight: "bold", opacity: 0.8 }}>{label}</span>
+                  <div style={{ flex: 1, height: 1, background: "#ffc425", opacity: 0.3 }} />
+                </div>
+              )
+
+              return (
+                <table style={{ width: "100%", borderCollapse: "collapse", background: "#1a3a4a" }}>
+                  <thead>
+                    <tr>
+                      <th style={{ background: "#ffc425", color: "#0d1f2d", padding: "10px 8px", textAlign: "left", fontSize: 13, width: 30 }}></th>
+                      <th style={{ background: "#ffc425", color: "#0d1f2d", padding: "10px 8px", textAlign: "left", fontSize: 13 }}>Team</th>
+                      <th style={{ background: "#ffc425", color: "#0d1f2d", padding: "10px 8px", textAlign: "left", fontSize: 13 }}>Div</th>
+                      <th style={{ background: "#ffc425", color: "#0d1f2d", padding: "10px 8px", textAlign: "center", fontSize: 13 }}>W</th>
+                      <th style={{ background: "#ffc425", color: "#0d1f2d", padding: "10px 8px", textAlign: "center", fontSize: 13 }}>L</th>
+                      <th style={{ background: "#ffc425", color: "#0d1f2d", padding: "10px 8px", textAlign: "center", fontSize: 13 }}>PCT</th>
+                      <th style={{ background: "#ffc425", color: "#0d1f2d", padding: "10px 8px", textAlign: "center", fontSize: 13 }}>GB</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td colSpan={7} style={{ padding: 0 }}><Divider label="DIVISION LEADERS" /></td></tr>
+                    {divLeaders.map((t, i) => (
+                      <tr key={i} style={{ background: t.name.includes("Padres") ? "rgba(255,196,37,0.08)" : "transparent" }}>
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d" }}>
+                          <span style={{
+                            background: "#ffc425", color: "#0d1f2d",
+                            borderRadius: 4, fontSize: 10, fontWeight: "bold",
+                            width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center"
+                          }}>{t.seed}</span>
+                        </td>
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, color: t.name.includes("Padres") ? "#ffc425" : "white", fontWeight: t.name.includes("Padres") ? "bold" : "normal" }}>{t.name}</td>
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 12, color: "#aaa" }}>{t.division.replace("National League ", "")}</td>
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, textAlign: "center" }}>{t.wins}</td>
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, textAlign: "center" }}>{t.losses}</td>
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, textAlign: "center", color: "#aaa" }}>{t.pct}</td>
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, textAlign: "center", color: "#aaa" }}>{t.gb}</td>
+                      </tr>
+                    ))}
+                    <tr><td colSpan={7} style={{ padding: 0 }}><Divider label="WILD CARD" /></td></tr>
+                    {wildCards.map((t, i) => (
+                      <tr key={i} style={{ background: t.name.includes("Padres") ? "rgba(255,196,37,0.08)" : "transparent" }}>
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d" }}>
+                          <span style={{
+                            background: "#1f4a5e", color: "#ffc425",
+                            borderRadius: 4, fontSize: 10, fontWeight: "bold",
+                            width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center"
+                          }}>{t.seed}</span>
+                        </td>
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, color: t.name.includes("Padres") ? "#ffc425" : "white", fontWeight: t.name.includes("Padres") ? "bold" : "normal" }}>{t.name}</td>
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 12, color: "#aaa" }}>{t.division.replace("National League ", "")}</td>
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, textAlign: "center" }}>{t.wins}</td>
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, textAlign: "center" }}>{t.losses}</td>
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, textAlign: "center", color: "#aaa" }}>{t.pct}</td>
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, textAlign: "center", color: "#aaa" }}>{t.gb}</td>
+                      </tr>
+                    ))}
+                    <tr><td colSpan={7} style={{ padding: 0 }}><Divider label="OUT OF PLAYOFFS" /></td></tr>
+                    {eliminated.map((t, i) => (
+                      <tr key={i} style={{ background: t.name.includes("Padres") ? "rgba(255,196,37,0.08)" : "transparent" }}>
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d" }}>
+                          <span style={{ width: 18, display: "inline-block" }} />
+                        </td>
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, color: t.name.includes("Padres") ? "#ffc425" : "white", fontWeight: t.name.includes("Padres") ? "bold" : "normal" }}>{t.name}</td>
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 12, color: "#aaa" }}>{t.division.replace("National League ", "")}</td>
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, textAlign: "center" }}>{t.wins}</td>
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, textAlign: "center" }}>{t.losses}</td>
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, textAlign: "center", color: "#aaa" }}>{t.pct}</td>
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, textAlign: "center", color: "#aaa" }}>{t.gb}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )
+            })()}
+          </div>
         </div>
       )}
     </div>

@@ -4,6 +4,7 @@ import RosterTable from "./components/RosterTable"
 import Standings from "./components/Standings"
 import FavoritesTab from "./components/FavoritesTab"
 import "./App.css"
+import NLPlayoff from "./components/NLPlayoff"
 
 function App() {
   const [live, setLive] = useState(null)
@@ -17,6 +18,22 @@ function App() {
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
   const [playerGames, setPlayerGames] = useState({})
+  const [wildcard, setWildcard] = useState([])
+  const [nlPlayoff, setNlPlayoff] = useState([])
+
+  const fetchNlPlayoff = () => {
+    fetch("http://127.0.0.1:5001/api/nlplayoff")
+      .then(res => res.json())
+      .then(data => setNlPlayoff(data))
+      .catch(err => console.error("NL Playoff fetch error:", err))
+  }
+
+  const fetchWildcard = () => {
+    fetch("http://127.0.0.1:5001/api/wildcard")
+      .then(res => res.json())
+      .then(data => setWildcard(data))
+      .catch(err => console.error("Wildcard fetch error:", err))
+  }
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -136,6 +153,8 @@ function App() {
     fetchRoster()
     fetchStandings()
     fetchPrevGame()
+    fetchWildcard()
+    fetchNlPlayoff()
     const interval = setInterval(fetchLive, 15000)
     return () => clearInterval(interval)
   }, [])
@@ -299,8 +318,8 @@ function App() {
       {activeTab === "dashboard" && (
         <>
           <div className="top-row" style={{ minHeight: 280 }}>
-            <LiveGame live={live} />
-            <Standings teams={standings} prevGame={prevGame} />
+            <LiveGame live={live} prevGame={prevGame} />
+            <Standings teams={standings} wildcard={wildcard} nlPlayoff={nlPlayoff} />
           </div>
           {loading ? (
             <p className="loading">Loading roster stats...</p>
@@ -319,9 +338,7 @@ function App() {
       )}
 
       {activeTab === "wildcard" && (
-        <p style={{ textAlign: "center", color: "#aaa", marginTop: 40 }}>
-          Wild Card Watch coming soon!
-        </p>
+        <NLPlayoff teams={nlPlayoff} />
       )}
     </div>
   )
