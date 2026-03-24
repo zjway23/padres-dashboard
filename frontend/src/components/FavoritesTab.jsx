@@ -131,14 +131,21 @@ return play.event
         )
     }
 
-function PlayerLastGame({ playerId }) {
-    const [games, setGames] = useState([])
-    const [index, setIndex] = useState(0)
-    const [plays, setPlays] = useState([])
-    const [loadingGames, setLoadingGames] = useState(true)
-    const [loadingPlays, setLoadingPlays] = useState(false)
-  
-    useEffect(() => {
+function PlayerLastGame({ playerId, preloadedGames }) {
+  const [games, setGames] = useState([])
+  const [index, setIndex] = useState(0)
+  const [plays, setPlays] = useState([])
+  const [loadingGames, setLoadingGames] = useState(true)
+  const [loadingPlays, setLoadingPlays] = useState(false)
+
+  useEffect(() => {
+    if (preloadedGames && preloadedGames.length > 0) {
+      setGames(preloadedGames)
+      const lastIndex = preloadedGames.length - 1
+      setIndex(lastIndex)
+      fetchPlays(playerId, preloadedGames[lastIndex].game_pk)
+      setLoadingGames(false)
+    } else {
       fetch(`https://padres-dashboard.onrender.com/api/playergame/${playerId}`)
         .then(res => res.json())
         .then(data => {
@@ -151,7 +158,8 @@ function PlayerLastGame({ playerId }) {
           setLoadingGames(false)
         })
         .catch(() => setLoadingGames(false))
-    }, [playerId])
+    }
+  }, [playerId, preloadedGames])
   
     const fetchPlays = (pid, gamePk) => {
       if (!gamePk) return
@@ -233,7 +241,7 @@ function PlayerLastGame({ playerId }) {
     )
   }
 
-function PlayerCard({ p, onToggleFavorite }) {
+function PlayerCard({ p, onToggleFavorite, preloadedGames }) {
   const sb = getSBDisplay(p)
 
   return (
@@ -286,12 +294,12 @@ function PlayerCard({ p, onToggleFavorite }) {
         <StatBox label="G" value={p.games} />
       </div>
 
-      <PlayerLastGame playerId={p.player_id} />
+      <PlayerLastGame playerId={p.player_id} preloadedGames={preloadedGames} />
     </div>
   )
 }
 
-function FavoritesTab({ players, onToggleFavorite }) {
+function FavoritesTab({ players, onToggleFavorite, playerGames }) {
     const favorites = players.filter(p => p.favorited)
   
     return (
@@ -304,7 +312,7 @@ function FavoritesTab({ players, onToggleFavorite }) {
             </p>
           ) : (
             favorites.map((p, i) => (
-              <PlayerCard key={i} p={p} onToggleFavorite={onToggleFavorite} />
+              <PlayerCard key={i} p={p} onToggleFavorite={onToggleFavorite} preloadedGames={playerGames[p.player_id]} />
             ))
           )}
         </div>

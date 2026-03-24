@@ -197,12 +197,20 @@ def prev_game_api():
 
 @app.route("/api/live")
 def live_game_api():
+    from datetime import timedelta
     today = date.today().strftime("%Y-%m-%d")
     schedule_url = "https://statsapi.mlb.com/api/v1/schedule"
-    params = {"sportId": 1, "teamId": 135, "date": today, "hydrate": "linescore"}
-    data = requests.get(schedule_url, params=params).json()
 
-    dates = data.get("dates", [])
+    # Try today first, then look back up to 3 days for most recent game
+    dates = []
+    for days_back in range(0, 4):
+        check_date = (date.today() - timedelta(days=days_back)).strftime("%Y-%m-%d")
+        params = {"sportId": 1, "teamId": 135, "date": check_date, "hydrate": "linescore"}
+        data = requests.get(schedule_url, params=params).json()
+        dates = data.get("dates", [])
+        if dates:
+            break
+
     if not dates:
         return jsonify(None)
 
@@ -215,6 +223,7 @@ def live_game_api():
 
     all_plays = plays.get("allPlays", [])
     completed_plays = [p for p in all_plays if p.get("about", {}).get("isComplete", False)]
+
     # Get scoring plays
     scoring_plays = [p for p in all_plays if p.get("about", {}).get("isScoringPlay", False)]
     scoring_summary = []

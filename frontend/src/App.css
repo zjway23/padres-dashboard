@@ -28,8 +28,7 @@ h1 {
   max-width: 420px;
   display: flex;
   flex-direction: column;
-  height: 568px;
-  overflow: hidden;
+  min-height: 400px;
 }
 
 .game-card h2 { color: #ffc425; margin-bottom: 10px; }
@@ -104,8 +103,7 @@ tr:hover td { background-color: #1f4a5e; }
   padding: 20px;
   min-width: 300px;
   flex: 1;
-  height: 568px;
-  overflow: hidden;
+  min-height: 400px;
 }
 
 .standings-section h2 {
@@ -123,12 +121,13 @@ tr:hover td { background-color: #1f4a5e; }
 .standings-table-wrapper {
   border: 3.2px solid #ffc425;
   border-radius: 10px;
-  overflow: hidden;
+  overflow-x: auto;
   margin-bottom: 16px;
 }
 
 .standings-table-wrapper table {
   border-radius: 0;
+  min-width: 400px;
 }
 
 .tabs {

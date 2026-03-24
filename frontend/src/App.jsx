@@ -16,6 +16,7 @@ function App() {
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
+  const [playerGames, setPlayerGames] = useState({})
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -58,9 +59,27 @@ function App() {
           ...p,
           favorited: favs.some(f => f.player_id === p.player_id)
         }))
+        const favoritedPlayers = [...updated, ...newPlayers].filter(p => p.favorited)
+        preloadPlayerGames(favoritedPlayers)
         setPlayers([...updated, ...newPlayers])
       })
       .catch(err => console.error("Favorites fetch error:", err))
+  }
+
+  const preloadPlayerGames = (favoritedPlayers) => {
+    favoritedPlayers.forEach(player => {
+      fetch(`https://padres-dashboard.onrender.com/api/playergame/${player.player_id}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data) {
+            setPlayerGames(prev => ({
+              ...prev,
+              [player.player_id]: data
+            }))
+          }
+        })
+        .catch(err => console.error("Preload error:", err))
+    })
   }
 
   const fetchRoster = () => {
@@ -269,6 +288,12 @@ function App() {
         >
           Bullpen
         </button>
+        <button
+          className={`tab ${activeTab === "wildcard" ? "active" : ""}`}
+          onClick={() => setActiveTab("wildcard")}
+        >
+          🏆 Wild Card
+        </button>
       </div>
 
       {activeTab === "dashboard" && (
@@ -286,11 +311,17 @@ function App() {
       )}
 
       {activeTab === "favorites" && (
-        <FavoritesTab players={players} onToggleFavorite={toggleFavorite} />
+        <FavoritesTab players={players} onToggleFavorite={toggleFavorite} playerGames={playerGames} />
       )}
 
       {activeTab === "bullpen" && (
         <p style={{ textAlign: "center", color: "#aaa" }}>Bullpen tracker coming soon!</p>
+      )}
+
+      {activeTab === "wildcard" && (
+        <p style={{ textAlign: "center", color: "#aaa", marginTop: 40 }}>
+          Wild Card Watch coming soon!
+        </p>
       )}
     </div>
   )
