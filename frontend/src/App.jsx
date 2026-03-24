@@ -124,7 +124,7 @@ function App() {
   return (
     <div className="app">
       <div style={{ position: "relative" }}>
-        <h1>⚾ Padres Dashboard</h1>
+        <h1>Padres Dashboard</h1>
 
         {activeTab === "favorites" && (
           <div className="search-container" style={{ position: "absolute", top: 0, right: 0 }}>
@@ -267,7 +267,7 @@ function App() {
           className={`tab ${activeTab === "bullpen" ? "active" : ""}`}
           onClick={() => setActiveTab("bullpen")}
         >
-          ⚾ Bullpen
+          Bullpen
         </button>
       </div>
 
