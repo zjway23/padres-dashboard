@@ -394,6 +394,7 @@ def toggle_favorite():
         position=data["position"],
         team=data.get("team", ""),
         uid=uid
+        user_id=uid
     )
     db.session.add(new_fav)
     db.session.commit()
