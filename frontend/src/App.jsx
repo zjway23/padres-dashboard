@@ -29,6 +29,7 @@ function App() {
   const [nextGame, setNextGame] = useState(null)
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
+  const [favoritesLoaded, setFavoritesLoaded] = useState(false)
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -103,6 +104,7 @@ function App() {
         const favoritedPlayers = [...updated, ...newPlayers].filter(p => p.favorited)
         preloadPlayerGames(favoritedPlayers)
         setPlayers([...updated, ...newPlayers])
+        setFavoritesLoaded(true)
       })
       .catch(err => console.error("Favorites fetch error:", err))
   }
@@ -385,7 +387,9 @@ useEffect(() => {
       )}
 
       {activeTab === "favorites" && (
-        <FavoritesTab players={players} onToggleFavorite={toggleFavorite} playerGames={playerGames} />
+        favoritesLoaded 
+          ? <FavoritesTab players={players} onToggleFavorite={toggleFavorite} playerGames={playerGames} />
+          : <p style={{ textAlign: "center", color: "#aaa", marginTop: 40 }}>Loading favorites...</p>
       )}
 
       {activeTab === "bullpen" && (
