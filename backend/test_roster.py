@@ -18,7 +18,7 @@ def get_padres_batting_stats():
         stats_data = requests.get(stats_url, params={
             "stats": "season",
             "group": "hitting",
-            "season": 2025
+            "season": 2026
         }).json()
 
         stats_list = stats_data.get("stats", [])

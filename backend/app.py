@@ -13,10 +13,11 @@ db = SQLAlchemy(app)
 # Database model
 class FavoritePlayer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    player_id = db.Column(db.Integer, unique=True, nullable=False)
+    player_id = db.Column(db.Integer, nullable=False)
     name = db.Column(db.String(100), nullable=False)
-    position = db.Column(db.String(10), nullable=False)
-    team = db.Column(db.String(100), nullable=False)
+    position = db.Column(db.String(20))
+    team = db.Column(db.String(100))
+    uid = db.Column(db.String(200))
 
 with app.app_context():
     db.create_all()
@@ -150,19 +151,48 @@ def standings_api():
 
     return jsonify([])
 
+@app.route("/api/nextgame")
+def next_game_api():
+    from datetime import timedelta
+    today = date.today().strftime("%Y-%m-%d")
+    future_date = (date.today() + timedelta(days=14)).strftime("%Y-%m-%d")
+    url = "https://statsapi.mlb.com/api/v1/schedule"
+
+    for game_type, label in [("R", "Regular Season"), ("S", "Spring Training")]:
+        params = {
+            "sportId": 1, "teamId": 135, "season": 2026,
+            "gameType": game_type,
+            "startDate": today, "endDate": future_date,
+            "hydrate": "linescore,venue"
+        }
+        data = requests.get(url, params=params).json()
+        upcoming = []
+        for d in data.get("dates", []):
+            for game in d["games"]:
+                if game["status"]["detailedState"] not in ("Final", "Game Over", "Completed Early"):
+                    upcoming.append(game)
+        if upcoming:
+            g = upcoming[0]
+            return jsonify({
+                "away": g["teams"]["away"]["team"]["name"],
+                "home": g["teams"]["home"]["team"]["name"],
+                "game_datetime": g["gameDate"],  # full ISO string in UTC
+                "game_type": label,
+                "venue": g.get("venue", {}).get("name", "")
+            })
+    return jsonify(None)
+
+
 @app.route("/api/prevgame")
 def prev_game_api():
     today = date.today().strftime("%Y-%m-%d")
     url = "https://statsapi.mlb.com/api/v1/schedule"
+    game_label = "Regular Season"
 
     params = {
-        "sportId": 1,
-        "teamId": 135,
-        "season": 2026,
-        "gameType": "R",
-        "hydrate": "linescore",
-        "startDate": "2026-03-01",
-        "endDate": today
+        "sportId": 1, "teamId": 135, "season": 2026,
+        "gameType": "R", "hydrate": "linescore",
+        "startDate": "2026-03-01", "endDate": today
     }
     data = requests.get(url, params=params).json()
     completed = []
@@ -172,6 +202,7 @@ def prev_game_api():
                 completed.append(game)
 
     if not completed:
+        game_label = "Spring Training"
         params["gameType"] = "S"
         params["startDate"] = "2026-02-01"
         data = requests.get(url, params=params).json()
@@ -184,38 +215,52 @@ def prev_game_api():
         return jsonify(None)
 
     last = completed[-1]
+    game_pk = last["gamePk"]
     away = last["teams"]["away"]
     home = last["teams"]["home"]
+
+    scoring_summary = []
+    try:
+        live_data = requests.get(f"https://statsapi.mlb.com/api/v1.1/game/{game_pk}/feed/live").json()
+        all_plays = live_data["liveData"]["plays"].get("allPlays", [])
+        for play in all_plays:
+            if play.get("about", {}).get("isScoringPlay", False):
+                scoring_summary.append({
+                    "inning": f"{'Top' if play['about']['isTopInning'] else 'Bot'} {play['about']['inning']}",
+                    "description": play["result"].get("description", ""),
+                    "away_score": play["result"].get("awayScore", 0),
+                    "home_score": play["result"].get("homeScore", 0)
+                })
+    except Exception:
+        pass
+
     return jsonify({
         "away": away["team"]["name"],
         "home": home["team"]["name"],
         "away_score": away.get("score", 0),
         "home_score": home.get("score", 0),
         "date": last["gameDate"][:10],
-        "game_type": "Spring Training" if params.get("gameType") == "S" else "Regular Season"
+        "game_type": game_label,
+        "scoring_summary": scoring_summary
     })
+
 
 @app.route("/api/live")
 def live_game_api():
-    from datetime import timedelta
     today = date.today().strftime("%Y-%m-%d")
     schedule_url = "https://statsapi.mlb.com/api/v1/schedule"
 
-    # Try today first, then look back up to 3 days for most recent game
-    dates = []
-    for days_back in range(0, 4):
-        check_date = (date.today() - timedelta(days=days_back)).strftime("%Y-%m-%d")
-        params = {"sportId": 1, "teamId": 135, "date": check_date, "hydrate": "linescore"}
-        data = requests.get(schedule_url, params=params).json()
-        dates = data.get("dates", [])
-        if dates:
-            break
+    # ONLY check today — never look back at old finished games
+    params = {"sportId": 1, "teamId": 135, "date": today, "hydrate": "linescore"}
+    data = requests.get(schedule_url, params=params).json()
+    dates = data.get("dates", [])
 
     if not dates:
         return jsonify(None)
 
     game = dates[0]["games"][0]
     game_pk = game["gamePk"]
+    status = game["status"]["detailedState"]
 
     live_data = requests.get(f"https://statsapi.mlb.com/api/v1.1/game/{game_pk}/feed/live").json()
     linescore = live_data["liveData"]["linescore"]
@@ -224,7 +269,6 @@ def live_game_api():
     all_plays = plays.get("allPlays", [])
     completed_plays = [p for p in all_plays if p.get("about", {}).get("isComplete", False)]
 
-    # Get scoring plays
     scoring_plays = [p for p in all_plays if p.get("about", {}).get("isScoringPlay", False)]
     scoring_summary = []
     for play in scoring_plays:
@@ -266,7 +310,7 @@ def live_game_api():
         "home": game["teams"]["home"]["team"]["name"],
         "away_score": game["teams"]["away"].get("score", 0),
         "home_score": game["teams"]["home"].get("score", 0),
-        "status": game["status"]["detailedState"],
+        "status": status,
         "last_play": last_play,
         "last_play_event": last_play_event,
         "last_play_rbi": last_play_rbi,
@@ -276,7 +320,10 @@ def live_game_api():
 
 @app.route("/api/favorites", methods=["GET"])
 def get_favorites():
-    favorites = FavoritePlayer.query.all()
+    uid = request.args.get("uid")
+    if not uid:
+        return jsonify([])
+    favorites = FavoritePlayer.query.filter_by(uid=uid).all()
     result = []
     for f in favorites:
         stats_data = requests.get(
@@ -285,7 +332,6 @@ def get_favorites():
         ).json()
         stats_list = stats_data.get("stats", [])
         splits = stats_list[0].get("splits", []) if stats_list else []
-
         if splits:
             s = splits[0]["stat"]
             result.append({
@@ -316,38 +362,39 @@ def get_favorites():
                 "position": f.position,
                 "team": f.team,
                 "favorited": True,
-                "avg": "N/A", "hr": "N/A",
-                "rbi": "N/A", "ops": "N/A",
-                "obp": "N/A", "slg": "N/A",
-                "hits": "N/A", "games": "N/A",
-                "doubles": "N/A", "triples": "N/A",
-                "sb": "N/A", "cs": "N/A",
+                "avg": "N/A", "hr": "N/A", "rbi": "N/A",
+                "ops": "N/A", "obp": "N/A", "slg": "N/A",
+                "hits": "N/A", "games": "N/A", "doubles": "N/A",
+                "triples": "N/A", "sb": "N/A", "cs": "N/A",
                 "bb": "N/A", "k": "N/A"
             })
     return jsonify(result)
 
+
 @app.route("/api/favorites", methods=["POST"])
-def add_favorite():
-    data = request.get_json(force=True)
-    print("Received data:", data)  # debug line
-    if not data:
-        return jsonify({"error": "No data"}), 400
-    
-    existing = FavoritePlayer.query.filter_by(player_id=data["player_id"]).first()
+def toggle_favorite():
+    data = request.json
+    uid = data.get("uid")
+    if not uid:
+        return jsonify({"error": "no uid"}), 400
+    player_id = data["player_id"]
+    existing = FavoritePlayer.query.filter_by(
+        player_id=player_id, uid=uid
+    ).first()
     if existing:
         db.session.delete(existing)
         db.session.commit()
-        return jsonify({"favorited": False})
-    
+        return jsonify({"status": "removed"})
     new_fav = FavoritePlayer(
-        player_id=data["player_id"],
+        player_id=player_id,
         name=data["name"],
         position=data["position"],
-        team=data["team"]
+        team=data.get("team", ""),
+        uid=uid
     )
     db.session.add(new_fav)
     db.session.commit()
-    return jsonify({"favorited": True})
+    return jsonify({"status": "added"})
 
 @app.route("/api/search")
 def search_players():
@@ -573,7 +620,6 @@ def nl_playoff_api():
         t["category"] = "eliminated"
 
     return jsonify(div_leaders + wild_cards + eliminated)
-
 
 if __name__ == "__main__":
     app.run(debug=True, port=5001)

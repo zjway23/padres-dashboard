@@ -1,10 +1,16 @@
 import { useState, useEffect } from "react"
+import { auth } from "./firebase"
+import { onAuthStateChanged, signOut } from "firebase/auth"
+import Login from "./components/Login"
 import LiveGame from "./components/LiveGame"
 import RosterTable from "./components/RosterTable"
 import Standings from "./components/Standings"
 import FavoritesTab from "./components/FavoritesTab"
 import "./App.css"
 import NLPlayoff from "./components/NLPlayoff"
+
+const API = import.meta.env.VITE_API_URL || "https://padres-dashboard.onrender.com"
+
 
 function App() {
   const [live, setLive] = useState(null)
@@ -20,16 +26,34 @@ function App() {
   const [playerGames, setPlayerGames] = useState({})
   const [wildcard, setWildcard] = useState([])
   const [nlPlayoff, setNlPlayoff] = useState([])
+  const [nextGame, setNextGame] = useState(null)
+  const [user, setUser] = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser)
+      setAuthLoading(false)
+    })
+    return () => unsubscribe()
+  }, [])
+
+  const fetchNextGame = () => {
+    fetch(`${API}/api/nextgame`)
+      .then(res => res.json())
+      .then(data => setNextGame(data))
+      .catch(err => console.error("Next game fetch error:", err))
+  }
 
   const fetchNlPlayoff = () => {
-    fetch(`https://padres-dashboard.onrender.com/api/nlplayoff`)
+    fetch(`${API}/api/nlplayoff`)
       .then(res => res.json())
       .then(data => setNlPlayoff(data))
       .catch(err => console.error("NL Playoff fetch error:", err))
   }
 
   const fetchWildcard = () => {
-    fetch(`https://padres-dashboard.onrender.com/api/wildcard`)
+    fetch(`${API}/api/wildcard`)
       .then(res => res.json())
       .then(data => setWildcard(data))
       .catch(err => console.error("Wildcard fetch error:", err))
@@ -50,7 +74,7 @@ function App() {
   const handleGlobalSearch = () => {
     if (!searchQuery.trim()) return
     setSearching(true)
-    fetch(`https://padres-dashboard.onrender.com/api/search?name=${encodeURIComponent(searchQuery)}`)
+    fetch(`${API}/api/search?name=${encodeURIComponent(searchQuery)}`)
       .then(res => res.json())
       .then(data => {
         setSearchResults(data)
@@ -60,14 +84,14 @@ function App() {
   }
 
   const fetchLive = () => {
-    fetch("https://padres-dashboard.onrender.com/api/live")
+     fetch(`${API}/api/live`)
       .then(res => res.json())
       .then(data => setLive(data))
       .catch(err => console.error("Live fetch error:", err))
   }
 
   const fetchFavoritesWithRoster = (rosterData) => {
-    fetch("https://padres-dashboard.onrender.com/api/favorites")
+    fetch(`${API}/api/favorites?uid=${user.uid}`)
       .then(res => res.json())
       .then(favs => {
         const existingIds = new Set(rosterData.map(p => p.player_id))
@@ -85,7 +109,7 @@ function App() {
 
   const preloadPlayerGames = (favoritedPlayers) => {
     favoritedPlayers.forEach(player => {
-      fetch(`https://padres-dashboard.onrender.com/api/playergame/${player.player_id}`)
+      fetch(`${API}/api/playergame/${player.player_id}`)
         .then(res => res.json())
         .then(data => {
           if (data) {
@@ -100,7 +124,7 @@ function App() {
   }
 
   const fetchRoster = () => {
-    fetch("https://padres-dashboard.onrender.com/api/roster")
+    fetch(`${API}/api/roster`)
       .then(res => res.json())
       .then(data => {
         setPlayers(data)
@@ -111,61 +135,114 @@ function App() {
   }
 
   const fetchStandings = () => {
-    fetch("https://padres-dashboard.onrender.com/api/standings")
+    fetch(`${API}/api/standings`)
       .then(res => res.json())
       .then(data => setStandings(data))
       .catch(err => console.error("Standings fetch error:", err))
   }
 
   const fetchPrevGame = () => {
-    fetch("https://padres-dashboard.onrender.com/api/prevgame")
+    fetch(`${API}/api/prevgame`)
       .then(res => res.json())
       .then(data => setPrevGame(data))
       .catch(err => console.error("Prev game fetch error:", err))
   }
 
   const toggleFavorite = (player) => {
-    setPlayers(prev => {
-      const exists = prev.find(p => p.player_id === player.player_id)
-      if (exists) {
-        return prev.map(p =>
-          p.player_id === player.player_id ? { ...p, favorited: !p.favorited } : p
-        )
-      } else {
-        return [...prev, { ...player, favorited: true }]
-      }
-    })
+  setPlayers(prev => {
+    const exists = prev.find(p => p.player_id === player.player_id)
+    if (exists) {
+      return prev.map(p =>
+        p.player_id === player.player_id ? { ...p, favorited: !p.favorited } : p
+      )
+    } else {
+      return [...prev, { ...player, favorited: true }]
+    }
+  })
 
-    fetch("https://padres-dashboard.onrender.com/api/favorites", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        player_id: player.player_id,
-        name: player.name,
-        position: player.position,
-        team: player.team
-      })
-    }).catch(err => console.error("Favorite error:", err))
-  }
+  fetch(`${API}/api/favorites`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      player_id: player.player_id,
+      name: player.name,
+      position: player.position,
+      team: player.team,
+      uid: user.uid
+    })
+  }).catch(err => console.error("Favorite error:", err))
+}
 
   useEffect(() => {
     fetchLive()
     fetchRoster()
     fetchStandings()
     fetchPrevGame()
+    fetchNextGame()
     fetchWildcard()
     fetchNlPlayoff()
     const interval = setInterval(fetchLive, 15000)
     return () => clearInterval(interval)
   }, [])
 
+  if (authLoading) return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0a1929" }}>
+      <p style={{ color: "#ffc425" }}>Loading...</p>
+    </div>
+  )
+
+  if (!user) return <Login />
+
   return (
     <div className="app">
-      <div style={{ position: "relative" }}>
-        <h1>Padres Dashboard</h1>
+      <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 24 }}>
+        <h1 style={{ margin: 0 }}>Padres Dashboard</h1>
+        <button
+          onClick={() => signOut(auth)}
+          style={{
+            position: "absolute",
+            right: 0,
+            background: "transparent",
+            border: "1.5px solid #aaa",
+            color: "#aaa",
+            borderRadius: 8,
+            padding: "4px 10px",
+            fontSize: 12,
+            cursor: "pointer"
+          }}
+        >
+          Sign out
+        </button>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 16, position: "relative" }}>
+        <button
+          className={`tab ${activeTab === "dashboard" ? "active" : ""}`}
+          onClick={() => setActiveTab("dashboard")}
+        >
+          Dashboard
+        </button>
+        <button
+          className={`tab ${activeTab === "favorites" ? "active" : ""}`}
+          onClick={() => setActiveTab("favorites")}
+        >
+          ⭐ Favorites
+        </button>
+        <button
+          className={`tab ${activeTab === "bullpen" ? "active" : ""}`}
+          onClick={() => setActiveTab("bullpen")}
+        >
+          Bullpen
+        </button>
+        <button
+          className={`tab ${activeTab === "wildcard" ? "active" : ""}`}
+          onClick={() => setActiveTab("wildcard")}
+        >
+          🏆 Wild Card
+        </button>
 
         {activeTab === "favorites" && (
-          <div className="search-container" style={{ position: "absolute", top: 0, right: 0 }}>
+          <div className="search-container" style={{ position: "absolute", right: 0 }}>
             <button
               onClick={() => { setSearchOpen(!searchOpen); setSearchResults([]); setSearchQuery("") }}
               style={{
@@ -288,37 +365,10 @@ function App() {
         )}
       </div>
 
-      <div className="tabs">
-        <button
-          className={`tab ${activeTab === "dashboard" ? "active" : ""}`}
-          onClick={() => setActiveTab("dashboard")}
-        >
-          Dashboard
-        </button>
-        <button
-          className={`tab ${activeTab === "favorites" ? "active" : ""}`}
-          onClick={() => setActiveTab("favorites")}
-        >
-          ⭐ Favorites
-        </button>
-        <button
-          className={`tab ${activeTab === "bullpen" ? "active" : ""}`}
-          onClick={() => setActiveTab("bullpen")}
-        >
-          Bullpen
-        </button>
-        <button
-          className={`tab ${activeTab === "wildcard" ? "active" : ""}`}
-          onClick={() => setActiveTab("wildcard")}
-        >
-          🏆 Wild Card
-        </button>
-      </div>
-
       {activeTab === "dashboard" && (
         <>
           <div className="top-row" style={{ minHeight: 280 }}>
-            <LiveGame live={live} prevGame={prevGame} />
+            <LiveGame live={live} prevGame={prevGame} nextGame={nextGame} />
             <Standings teams={standings} wildcard={wildcard} nlPlayoff={nlPlayoff} />
           </div>
           {loading ? (
