@@ -124,7 +124,7 @@ function App() {
   }
 
   const fetchRoster = () => {
-    fetch(`${API}/api/roster`)
+    fetch(`${API}/api/roster?uid=${user.uid}`)
       .then(res => res.json())
       .then(data => {
         setPlayers(data)
@@ -173,17 +173,22 @@ function App() {
   }).catch(err => console.error("Favorite error:", err))
 }
 
-  useEffect(() => {
-    fetchLive()
+useEffect(() => {
+  fetchLive()
+  fetchStandings()
+  fetchPrevGame()
+  fetchNextGame()
+  fetchWildcard()
+  fetchNlPlayoff()
+  const interval = setInterval(fetchLive, 15000)
+  return () => clearInterval(interval)
+}, [])
+
+useEffect(() => {
+  if (user) {
     fetchRoster()
-    fetchStandings()
-    fetchPrevGame()
-    fetchNextGame()
-    fetchWildcard()
-    fetchNlPlayoff()
-    const interval = setInterval(fetchLive, 15000)
-    return () => clearInterval(interval)
-  }, [])
+  }
+}, [user])
 
   if (authLoading) return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0a1929" }}>
@@ -211,7 +216,7 @@ function App() {
             cursor: "pointer"
           }}
         >
-          Sign out
+          Log out
         </button>
       </div>
 

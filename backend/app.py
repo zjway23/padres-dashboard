@@ -3,16 +3,18 @@ from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 import requests
 from datetime import date
+import os
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///padres.db"
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///padres.db")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy(app)
 
 # Database model
 class FavoritePlayer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(100), nullable=False)
     player_id = db.Column(db.Integer, nullable=False)
     name = db.Column(db.String(100), nullable=False)
     position = db.Column(db.String(20))
@@ -117,7 +119,8 @@ def game_api():
 @app.route("/api/roster")
 def roster_api():
     players = get_padres_batting_stats()
-    favorites = {f.player_id for f in FavoritePlayer.query.all()}
+    uid = request.args.get("uid", "")
+    favorites = {f.player_id for f in FavoritePlayer.query.filter_by(uid=uid).all()}
     for p in players:
         p["favorited"] = p["player_id"] in favorites
     return jsonify(players)
