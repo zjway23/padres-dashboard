@@ -9,7 +9,7 @@ function Diamond({ first, second, third }) {
   })
   return (
     <div style={{ textAlign: "center", margin: "10px 0" }}>
-      <div><span style={base(second)}></span></div>
+      <div style={{ marginBottom: -8}}><span style={base(second)}></span></div>
       <div>
         <span style={base(third)}></span>
         <span style={{ display: "inline-block", width: 18, margin: 4 }}></span>

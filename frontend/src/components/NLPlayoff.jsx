@@ -28,12 +28,13 @@ function NLPlayoff({ teams }) {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          flexShrink: 0
+          flexShrink: 0,
+          marginRight: 10
         }}>
           {t.seed}
         </span>
       ) : (
-        <span style={{ width: 22, flexShrink: 0 }} />
+        <span style={{ width: 22, flexShrink: 0, marginRight: 10 }} />
       )}
 
       <span style={{
@@ -46,7 +47,7 @@ function NLPlayoff({ teams }) {
       </span>
 
       {/* Division */}
-      <span style={{ fontSize: 12, color: "#aaa", minWidth: 36, textAlign: "center" }}>
+      <span style={{ fontSize: 12, color: "#aaa", minWidth: 55, textAlign: "left", paddingLeft: 8 }}>
         {t.division.replace("National League ", "")}
       </span>
 
@@ -66,7 +67,7 @@ function NLPlayoff({ teams }) {
       </span>
 
       {/* Games Remaining */}
-      <span style={{ fontSize: 12, color: "#8fc9e0", minWidth: 38, textAlign: "right" }}>
+      <span style={{ fontSize: 12, color: "#aaa", minWidth: 38, textAlign: "right" }}>
         {t.games_remaining !== undefined && t.games_remaining !== "-" ? t.games_remaining : "-"}
       </span>
     </div>
@@ -103,18 +104,20 @@ function NLPlayoff({ teams }) {
       {/* Header */}
       <div style={{
         display: "flex",
+        alignItems: "center",
+        gap: 10,
         padding: "0 12px",
         marginBottom: 4,
         fontSize: 11,
         color: "#aaa"
       }}>
-        <span style={{ width: 22, marginRight: 10, flexShrink: 0 }} />
+        <span style={{ width: 22, flexShrink: 0 }} />
         <span style={{ flex: 1 }}>Team</span>
-        <span style={{ minWidth: 36, textAlign: "center" }}>Div</span>
+        <span style={{ minWidth: 55, textAlign: "left", paddingLeft: 8 }}>Div</span>
         <span style={{ minWidth: 52, textAlign: "right" }}>W-L</span>
         <span style={{ minWidth: 34, textAlign: "right" }}>GB</span>
         <span style={{ minWidth: 38, textAlign: "right" }}>PCT</span>
-        <span style={{ minWidth: 38, textAlign: "right", color: "#8fc9e0" }}>REM</span>
+        <span style={{ minWidth: 38, textAlign: "right" }}>REM</span>
       </div>
 
       {/* Division Leaders */}
