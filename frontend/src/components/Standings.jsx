@@ -34,7 +34,7 @@ function Standings({ teams, nlPlayoff }) {
           <h2 style={{ color: "#ffc425", marginBottom: 12, fontSize: "1.1rem", textAlign: "center" }}>
             NL Playoff Picture
           </h2>
-          <div style={{ border: "3.2px solid #ffc425", borderRadius: 12, overflow: "hidden" }}>
+          <div className="standings-table-wrapper">
             {(() => {
               const divLeaders = nlPlayoff.filter(t => t.category === "division")
               const wildCards = nlPlayoff.filter(t => t.category === "wildcard")

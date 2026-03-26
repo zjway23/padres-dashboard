@@ -9,7 +9,11 @@ import FavoritesTab from "./components/FavoritesTab"
 import "./App.css"
 import NLPlayoff from "./components/NLPlayoff"
 
-const API = import.meta.env.VITE_API_URL || "https://padres-dashboard.onrender.com"
+const API = import.meta.env.VITE_API_URL || "http://localhost:5001"
+
+/* const API = import.meta.env.VITE_API_URL || "http://localhost:5001" */
+/* const API = import.meta.env.VITE_API_URL || "https://padres-dashboard.onrender.com" */
+
 
 
 function App() {

@@ -636,6 +636,5 @@ def nl_playoff_api():
         t["category"] = "eliminated"
 
     return jsonify(div_leaders + wild_cards + eliminated)
-
 if __name__ == "__main__":
     app.run(debug=True, port=5001)
