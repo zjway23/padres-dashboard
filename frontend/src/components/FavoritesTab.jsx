@@ -280,18 +280,18 @@ function PlayerCard({ p, onToggleFavorite, preloadedGames }) {
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         <StatBox label="AVG" value={p.avg} />
         <StatBox label="OPS" value={p.ops} />
-        <StatBox label="HR" value={p.hr} />
-        <StatBox label="RBI" value={p.rbi} />
-        <StatBox label="BB" value={p.bb || "N/A"} />
-        <StatBox label="K" value={p.k || "N/A"} />
+        <StatBox label="HR" value={p.hr || "0"} />
+        <StatBox label="RBI" value={p.rbi || "0"} />
+        <StatBox label="BB" value={p.bb || "0"} />
+        <StatBox label="K" value={p.k || "0"} />
         <StatBox label="SB%" value={sb.pct} />
         <StatBox label="SB/ATT" value={sb.ratio} />
         <StatBox label="SLG" value={p.slg || "N/A"} />
         <StatBox label="OBP" value={p.obp || "N/A"} />
-        <StatBox label="H" value={p.hits} />
-        <StatBox label="2B" value={p.doubles || "N/A"} />
-        <StatBox label="3B" value={p.triples || "N/A"} />
-        <StatBox label="G" value={p.games} />
+        <StatBox label="H" value={p.hits || "0"} />
+        <StatBox label="2B" value={p.doubles || "0"} />
+        <StatBox label="3B" value={p.triples || "0"} />
+        <StatBox label="G" value={p.games || "0"} />
       </div>
 
       <PlayerLastGame playerId={p.player_id} preloadedGames={preloadedGames} />

@@ -48,72 +48,91 @@ function Standings({ teams, nlPlayoff }) {
                 </div>
               )
 
+              const tdBase = { borderBottom: "1px solid #0d1f2d" }
+
               return (
-                <table style={{ width: "100%", borderCollapse: "collapse", background: "#1a3a4a" }}>
-                  <thead>
-                    <tr>
-                      <th style={{ background: "#ffc425", color: "#0d1f2d", padding: "10px 8px", textAlign: "left", fontSize: 13, width: 30 }}></th>
-                      <th style={{ background: "#ffc425", color: "#0d1f2d", padding: "10px 8px", textAlign: "left", fontSize: 13 }}>Team</th>
-                      <th style={{ background: "#ffc425", color: "#0d1f2d", padding: "10px 8px", textAlign: "left", fontSize: 13 }}>Div</th>
-                      <th style={{ background: "#ffc425", color: "#0d1f2d", padding: "10px 8px", textAlign: "center", fontSize: 13 }}>W</th>
-                      <th style={{ background: "#ffc425", color: "#0d1f2d", padding: "10px 8px", textAlign: "center", fontSize: 13 }}>L</th>
-                      <th style={{ background: "#ffc425", color: "#0d1f2d", padding: "10px 8px", textAlign: "center", fontSize: 13 }}>PCT</th>
-                      <th style={{ background: "#ffc425", color: "#0d1f2d", padding: "10px 8px", textAlign: "center", fontSize: 13 }}>GB</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr><td colSpan={7} style={{ padding: 0 }}><Divider label="DIVISION LEADERS" /></td></tr>
-                    {divLeaders.map((t, i) => (
-                      <tr key={i} style={{ background: t.name.includes("Padres") ? "rgba(255,196,37,0.08)" : "transparent" }}>
-                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d" }}>
-                          <span style={{
-                            background: "#ffc425", color: "#0d1f2d",
-                            borderRadius: 4, fontSize: 10, fontWeight: "bold",
-                            width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center"
-                          }}>{t.seed}</span>
-                        </td>
-                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, color: t.name.includes("Padres") ? "#ffc425" : "white", fontWeight: t.name.includes("Padres") ? "bold" : "normal" }}>{t.name}</td>
-                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 12, color: "#aaa" }}>{t.division.replace("National League ", "")}</td>
-                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, textAlign: "center" }}>{t.wins}</td>
-                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, textAlign: "center" }}>{t.losses}</td>
-                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, textAlign: "center", color: "#aaa" }}>{t.pct}</td>
-                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, textAlign: "center", color: "#aaa" }}>{t.gb}</td>
+                <>
+                  {/* Fixed top section - header, div leaders, wild card */}
+                  <table style={{ width: "100%", borderCollapse: "collapse", background: "#1a3a4a" }}>
+                    <thead>
+                      <tr>
+                        <th style={{ background: "#ffc425", color: "#0d1f2d", padding: "10px 8px", textAlign: "left", fontSize: 13, width: 30 }}></th>
+                        <th style={{ background: "#ffc425", color: "#0d1f2d", padding: "10px 8px", textAlign: "left", fontSize: 13 }}>Team</th>
+                        <th style={{ background: "#ffc425", color: "#0d1f2d", padding: "10px 8px", textAlign: "left", fontSize: 13 }}>Div</th>
+                        <th style={{ background: "#ffc425", color: "#0d1f2d", padding: "10px 8px", textAlign: "center", fontSize: 13 }}>W</th>
+                        <th style={{ background: "#ffc425", color: "#0d1f2d", padding: "10px 8px", textAlign: "center", fontSize: 13 }}>L</th>
+                        <th style={{ background: "#ffc425", color: "#0d1f2d", padding: "10px 8px", textAlign: "center", fontSize: 13 }}>GB</th>
+                        <th style={{ background: "#ffc425", color: "#0d1f2d", padding: "10px 8px", textAlign: "center", fontSize: 13 }}>PCT</th>
+                        <th style={{ background: "#ffc425", color: "#0d1f2d", padding: "10px 8px", textAlign: "center", fontSize: 13 }}>REM</th>
                       </tr>
-                    ))}
-                    <tr><td colSpan={7} style={{ padding: 0 }}><Divider label="WILD CARD" /></td></tr>
-                    {wildCards.map((t, i) => (
-                      <tr key={i} style={{ background: t.name.includes("Padres") ? "rgba(255,196,37,0.08)" : "transparent" }}>
-                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d" }}>
-                          <span style={{
-                            background: "#1f4a5e", color: "#ffc425",
-                            borderRadius: 4, fontSize: 10, fontWeight: "bold",
-                            width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center"
-                          }}>{t.seed}</span>
-                        </td>
-                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, color: t.name.includes("Padres") ? "#ffc425" : "white", fontWeight: t.name.includes("Padres") ? "bold" : "normal" }}>{t.name}</td>
-                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 12, color: "#aaa" }}>{t.division.replace("National League ", "")}</td>
-                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, textAlign: "center" }}>{t.wins}</td>
-                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, textAlign: "center" }}>{t.losses}</td>
-                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, textAlign: "center", color: "#aaa" }}>{t.pct}</td>
-                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, textAlign: "center", color: "#aaa" }}>{t.gb}</td>
-                      </tr>
-                    ))}
-                    <tr><td colSpan={7} style={{ padding: 0 }}><Divider label="OUT OF PLAYOFFS" /></td></tr>
-                    {eliminated.map((t, i) => (
-                      <tr key={i} style={{ background: t.name.includes("Padres") ? "rgba(255,196,37,0.08)" : "transparent" }}>
-                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d" }}>
-                          <span style={{ width: 18, display: "inline-block" }} />
-                        </td>
-                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, color: t.name.includes("Padres") ? "#ffc425" : "white", fontWeight: t.name.includes("Padres") ? "bold" : "normal" }}>{t.name}</td>
-                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 12, color: "#aaa" }}>{t.division.replace("National League ", "")}</td>
-                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, textAlign: "center" }}>{t.wins}</td>
-                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, textAlign: "center" }}>{t.losses}</td>
-                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, textAlign: "center", color: "#aaa" }}>{t.pct}</td>
-                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #0d1f2d", fontSize: 13, textAlign: "center", color: "#aaa" }}>{t.gb}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      <tr><td colSpan={8} style={{ padding: 0 }}><Divider label="DIVISION LEADERS" /></td></tr>
+                      {divLeaders.map((t, i) => (
+                        <tr key={i} style={{ background: t.name.includes("Padres") ? "rgba(255,196,37,0.08)" : "transparent" }}>
+                          <td style={{ padding: "10px 8px", ...tdBase }}>
+                            <span style={{
+                              background: "#ffc425", color: "#0d1f2d",
+                              borderRadius: 4, fontSize: 10, fontWeight: "bold",
+                              width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center"
+                            }}>{t.seed}</span>
+                          </td>
+                          <td style={{ padding: "10px 8px", ...tdBase, fontSize: 13, color: t.name.includes("Padres") ? "#ffc425" : "white", fontWeight: t.name.includes("Padres") ? "bold" : "normal" }}>{t.name}</td>
+                          <td style={{ padding: "10px 8px", ...tdBase, fontSize: 12, color: "#aaa" }}>{t.division.replace("National League ", "")}</td>
+                          <td style={{ padding: "10px 8px", ...tdBase, fontSize: 13, textAlign: "center" }}>{t.wins}</td>
+                          <td style={{ padding: "10px 8px", ...tdBase, fontSize: 13, textAlign: "center" }}>{t.losses}</td>
+                          <td style={{ padding: "10px 8px", ...tdBase, fontSize: 13, textAlign: "center", color: "#aaa" }}>{t.gb === "-" || t.gb === "0" ? "-" : t.gb}</td>
+                          <td style={{ padding: "10px 8px", ...tdBase, fontSize: 13, textAlign: "center", color: "#aaa" }}>{t.pct}</td>
+                          <td style={{ padding: "10px 8px", ...tdBase, fontSize: 13, textAlign: "center", color: "#aaa" }}>{t.games_remaining ?? "-"}</td>
+                        </tr>
+                      ))}
+                      <tr><td colSpan={8} style={{ padding: 0 }}><Divider label="WILD CARD" /></td></tr>
+                      {wildCards.map((t, i) => (
+                        <tr key={i} style={{ background: t.name.includes("Padres") ? "rgba(255,196,37,0.08)" : "transparent" }}>
+                          <td style={{ padding: "10px 8px", ...tdBase }}>
+                            <span style={{
+                              background: "#1f4a5e", color: "#ffc425",
+                              borderRadius: 4, fontSize: 10, fontWeight: "bold",
+                              width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center"
+                            }}>{t.seed}</span>
+                          </td>
+                          <td style={{ padding: "10px 8px", ...tdBase, fontSize: 13, color: t.name.includes("Padres") ? "#ffc425" : "white", fontWeight: t.name.includes("Padres") ? "bold" : "normal" }}>{t.name}</td>
+                          <td style={{ padding: "10px 8px", ...tdBase, fontSize: 12, color: "#aaa" }}>{t.division.replace("National League ", "")}</td>
+                          <td style={{ padding: "10px 8px", ...tdBase, fontSize: 13, textAlign: "center" }}>{t.wins}</td>
+                          <td style={{ padding: "10px 8px", ...tdBase, fontSize: 13, textAlign: "center" }}>{t.losses}</td>
+                          <td style={{ padding: "10px 8px", ...tdBase, fontSize: 13, textAlign: "center", color: "#aaa" }}>{t.gb === "-" || t.gb === "0" ? "-" : t.gb}</td>
+                          <td style={{ padding: "10px 8px", ...tdBase, fontSize: 13, textAlign: "center", color: "#aaa" }}>{t.pct}</td>
+                          <td style={{ padding: "10px 8px", ...tdBase, fontSize: 13, textAlign: "center", color: "#aaa" }}>{t.games_remaining ?? "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {/* OUT OF PLAYOFFS divider */}
+                  <Divider label="OUT OF PLAYOFFS" />
+
+                  {/* Scrollable eliminated section */}
+                  <div style={{ maxHeight: 190, overflowY: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", background: "#1a3a4a" }}>
+                      <tbody>
+                        {eliminated.map((t, i) => (
+                          <tr key={i} style={{ background: t.name.includes("Padres") ? "rgba(255,196,37,0.08)" : "transparent" }}>
+                            <td style={{ padding: "10px 8px", ...tdBase, width: 30 }}>
+                              <span style={{ width: 18, display: "inline-block" }} />
+                            </td>
+                            <td style={{ padding: "10px 8px", ...tdBase, fontSize: 13, color: t.name.includes("Padres") ? "#ffc425" : "white", fontWeight: t.name.includes("Padres") ? "bold" : "normal" }}>{t.name}</td>
+                            <td style={{ padding: "10px 8px", ...tdBase, fontSize: 12, color: "#aaa" }}>{t.division.replace("National League ", "")}</td>
+                            <td style={{ padding: "10px 8px", ...tdBase, fontSize: 13, textAlign: "center" }}>{t.wins}</td>
+                            <td style={{ padding: "10px 8px", ...tdBase, fontSize: 13, textAlign: "center" }}>{t.losses}</td>
+                            <td style={{ padding: "10px 8px", ...tdBase, fontSize: 13, textAlign: "center", color: "#aaa" }}>{t.gb === "-" || t.gb === "0" ? "-" : t.gb}</td>
+                            <td style={{ padding: "10px 8px", ...tdBase, fontSize: 13, textAlign: "center", color: "#aaa" }}>{t.pct}</td>
+                            <td style={{ padding: "10px 8px", ...tdBase, fontSize: 13, textAlign: "center", color: "#aaa" }}>{t.games_remaining ?? "-"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )
             })()}
           </div>

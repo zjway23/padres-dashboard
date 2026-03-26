@@ -588,30 +588,42 @@ def nl_playoff_api():
     }
     data = requests.get(url, params=params).json()
 
-    teams = []
+    # Group by division, pick rank-1 from each
+    divisions = {}
+    all_teams = []
+
     for record in data.get("records", []):
+        div_name = record.get("division", {}).get("name", "")
         for t in record["teamRecords"]:
-            teams.append({
+            team = {
                 "name": t["team"]["name"],
                 "abbreviation": t["team"].get("abbreviation", ""),
-                "division": t["team"].get("division", {}).get("name", ""),
+                "division": div_name,
                 "league_rank": int(t.get("leagueRank", 99)),
                 "division_rank": int(t.get("divisionRank", 99)),
-                "division_leader": t.get("divisionLeader", False),
                 "wins": t["wins"],
                 "losses": t["losses"],
                 "pct": t["winningPercentage"],
                 "gb": t.get("gamesBack", "-"),
-                "wc_gb": t.get("wildCardGamesBack", "-")
-            })
+                "wc_gb": t.get("wildCardGamesBack", "-"),
+                "games_remaining": t.get("gamesRemaining", "-"),
+            }
+            all_teams.append(team)
+            # Track the division-rank-1 team per division
+            if int(t.get("divisionRank", 99)) == 1:
+                # If tie, keep the one with better league_rank
+                if div_name not in divisions or team["league_rank"] < divisions[div_name]["league_rank"]:
+                    divisions[div_name] = team
 
-    teams.sort(key=lambda x: x["league_rank"])
-    
-    # Assign playoff seeds
-    div_leaders = [t for t in teams if t["division_leader"]][:3]
+    div_leaders = list(divisions.values())
+    div_leaders.sort(key=lambda x: x["league_rank"])
     div_leader_names = {t["name"] for t in div_leaders}
-    wild_cards = [t for t in teams if t["name"] not in div_leader_names][:3]
-    eliminated = [t for t in teams if t["name"] not in div_leader_names and t not in wild_cards]
+
+    remaining = [t for t in all_teams if t["name"] not in div_leader_names]
+    remaining.sort(key=lambda x: x["league_rank"])
+
+    wild_cards = remaining[:3]
+    eliminated = remaining[3:]
 
     for i, t in enumerate(div_leaders):
         t["seed"] = i + 1
