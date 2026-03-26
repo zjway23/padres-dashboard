@@ -477,7 +477,7 @@ def player_game_detail(player_id):
     url = f"https://statsapi.mlb.com/api/v1/people/{player_id}/stats"
     
     all_splits = []
-    for season, game_type in [("2026", "R"), ("2026", "S"), ("2025", "R")]:
+    for season, game_type in [("2025", "R"), ("2026", "S"), ("2026", "R")]:
         params = {
             "stats": "gameLog",
             "group": "hitting",
