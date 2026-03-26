@@ -142,25 +142,31 @@ function LiveGame({ live, prevGame, nextGame }) {
   if (isLive) {
     return (
       <div className="game-card" style={{ display: "flex", flexDirection: "column" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-          <span style={{
-            background: "#f44336", color: "white", fontSize: 10, fontWeight: "bold",
-            borderRadius: 4, padding: "2px 6px", letterSpacing: 1
-          }}>● LIVE</span>
+
+        {/* Header: centered title, LIVE badge pinned top-right */}
+        <div style={{ position: "relative", textAlign: "center", marginBottom: 4 }}>
           <h2 style={{ margin: 0 }}>Today's Game</h2>
+          <span style={{
+            position: "absolute", top: 0, right: 0,
+            background: "#f44336", color: "white",
+            fontSize: 8, fontWeight: "bold",
+            borderRadius: 3, padding: "2px 5px",
+            letterSpacing: 0.8, lineHeight: 1.4
+          }}>● LIVE</span>
         </div>
-        <p className="matchup">{live.away} @ {live.home}</p>
-        <div className="score">{live.away_score} - {live.home_score}</div>
-        <p style={{ color: "#ffc425", marginTop: 12, fontWeight: "bold" }}>
+
+        <p className="matchup" style={{ textAlign: "center" }}>{live.away} @ {live.home}</p>
+        <div className="score" style={{ textAlign: "center" }}>{live.away_score} - {live.home_score}</div>
+        <p style={{ color: "#ffc425", marginTop: 12, fontWeight: "bold", textAlign: "center" }}>
           {live.half} {live.inning} · {live.outs} Out{live.outs !== 1 ? "s" : ""}
         </p>
         <Diamond first={live.first} second={live.second} third={live.third} />
-        <p style={{ fontSize: 13, color: "#aaa", marginTop: 6 }}>
+        <p style={{ fontSize: 13, color: "#aaa", marginTop: 6, textAlign: "center" }}>
           Count: {live.balls}-{live.strikes}
         </p>
-        <div style={{ marginTop: 12, fontSize: 13 }}>
-          <p>🏏 <strong>Batting:</strong> {live.batter}</p>
-          <p>⚾ <strong>Pitching:</strong> {live.pitcher}</p>
+        <div style={{ marginTop: 12, fontSize: 13, textAlign: "center" }}>
+          <p><strong>Batting:</strong> {live.batter}</p>
+          <p><strong>Pitching:</strong> {live.pitcher}</p>
         </div>
         <div style={{
           marginTop: 16, background: getLastPlayColor(),
@@ -171,6 +177,10 @@ function LiveGame({ live, prevGame, nextGame }) {
           <p style={{ color: "#ffc425", fontWeight: "bold", marginBottom: 4 }}>Last Play</p>
           <p>{live.last_play}</p>
         </div>
+        <div style={{ marginTop: 16, maxHeight: 384, overflowY: "auto" }}>
+          {live?.scoring_summary?.length > 0 && (
+            <ScoringPlays summary={live.scoring_summary} />          )}
+        </div>
         <div style={{ marginTop: 16 }}>
           <PrevGameCard />
         </div>
@@ -178,7 +188,7 @@ function LiveGame({ live, prevGame, nextGame }) {
     )
   }
 
-  // ── MODE 2: NO GAME / FINAL — next game + prev game + scoring plays ─────────
+  // ── MODE 2: NO GAME / FINAL ─────────────────────────────────────────────────
   return (
     <div className="game-card" style={{ display: "flex", flexDirection: "column" }}>
       <NextGameCard />
