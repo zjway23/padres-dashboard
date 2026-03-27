@@ -1,5 +1,20 @@
 import { useState, useEffect } from "react"
 
+const teamIdCache = {}
+
+async function fetchTeamId(playerId) {
+  if (teamIdCache[playerId]) return teamIdCache[playerId]
+  try {
+    const res = await fetch(`https://statsapi.mlb.com/api/v1/people/${playerId}?hydrate=currentTeam`)
+    const data = await res.json()
+    const id = data.people?.[0]?.currentTeam?.id || null
+    teamIdCache[playerId] = id
+    return id
+  } catch {
+    return null
+  }
+}
+
 function StatBox({ label, value }) {
   return (
     <div style={{
@@ -241,7 +256,58 @@ function PlayerLastGame({ playerId, preloadedGames }) {
     )
   }
 
-function PlayerCard({ p, onToggleFavorite, preloadedGames }) {
+  function PlayerNextGame({ playerId, API }) {
+    const [nextGame, setNextGame] = useState(null)
+    const [loading, setLoading] = useState(true)
+  
+    useEffect(() => {
+      let cancelled = false
+      async function load() {
+        const teamId = await fetchTeamId(playerId)
+        if (!teamId || cancelled) { setLoading(false); return }
+        try {
+          const res = await fetch(`${API}/api/player-next-game?team_id=${teamId}`)
+          const data = await res.json()
+          if (!cancelled) setNextGame(data)
+        } catch {}
+        if (!cancelled) setLoading(false)
+      }
+      load()
+      return () => { cancelled = true }
+    }, [playerId])
+  
+    if (loading) return <p style={{ color: "#aaa", fontSize: 12, marginTop: 10 }}>Loading next game...</p>
+    if (!nextGame) return <p style={{ color: "#555", fontSize: 12, marginTop: 10 }}>No upcoming game found</p>
+  
+    const dt = new Date(nextGame.game_datetime)
+    const formatted = dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
+    const time = dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short" })
+  
+    return (
+      <div style={{
+        marginTop: 12,
+        padding: "8px 12px",
+        background: "#0d2235",
+        borderRadius: 8,
+        borderLeft: "3px solid #ffc425"
+      }}>
+        <div style={{ color: "#ffc425", fontSize: 11, fontWeight: "bold", marginBottom: 4, letterSpacing: "0.5px" }}>
+          NEXT GAME
+        </div>
+        <div style={{ fontSize: 13, fontWeight: "bold" }}>
+          {nextGame.away} @ {nextGame.home}
+        </div>
+        <div style={{ color: "#aaa", fontSize: 12, marginTop: 2 }}>
+          {formatted} · {time}
+        </div>
+        {nextGame.venue && (
+          <div style={{ color: "#7a9db5", fontSize: 11, marginTop: 2 }}>{nextGame.venue}</div>
+        )}
+      </div>
+    )
+  }
+
+function PlayerCard({ p, onToggleFavorite, preloadedGames, API }) {
   const sb = getSBDisplay(p)
 
   return (
@@ -282,24 +348,25 @@ function PlayerCard({ p, onToggleFavorite, preloadedGames }) {
         <StatBox label="OPS" value={p.ops} />
         <StatBox label="HR" value={p.hr} />
         <StatBox label="RBI" value={p.rbi} />
-        <StatBox label="BB" value={p.bb || "N/A"} />
-        <StatBox label="K" value={p.k || "N/A"} />
+        <StatBox label="BB" value={p.bb || "0"} />
+        <StatBox label="K" value={p.k || "0"} />
         <StatBox label="SB%" value={sb.pct} />
         <StatBox label="SB/ATT" value={sb.ratio} />
         <StatBox label="SLG" value={p.slg || "N/A"} />
         <StatBox label="OBP" value={p.obp || "N/A"} />
         <StatBox label="H" value={p.hits} />
-        <StatBox label="2B" value={p.doubles || "N/A"} />
-        <StatBox label="3B" value={p.triples || "N/A"} />
+        <StatBox label="2B" value={p.doubles || "0"} />
+        <StatBox label="3B" value={p.triples || "0"} />
         <StatBox label="G" value={p.games} />
       </div>
 
       <PlayerLastGame playerId={p.player_id} preloadedGames={preloadedGames} />
+      <PlayerNextGame playerId={p.player_id} API={API} />
     </div>
   )
 }
 
-function FavoritesTab({ players, onToggleFavorite, playerGames }) {
+function FavoritesTab({ players, onToggleFavorite, playerGames, API }) {
     const favorites = players.filter(p => p.favorited)
   
     return (
@@ -312,7 +379,7 @@ function FavoritesTab({ players, onToggleFavorite, playerGames }) {
             </p>
           ) : (
             favorites.map((p, i) => (
-              <PlayerCard key={i} p={p} onToggleFavorite={onToggleFavorite} preloadedGames={playerGames[p.player_id]} />
+              <PlayerCard key={i} p={p} onToggleFavorite={onToggleFavorite} preloadedGames={playerGames[p.player_id]} API={API} />
             ))
           )}
         </div>

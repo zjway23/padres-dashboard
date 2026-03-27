@@ -49,22 +49,28 @@ function LiveGame({ live, prevGame, nextGame }) {
 
   const NextGameCard = () => {
     if (!nextGame) return null
+    const dt = new Date(nextGame.game_datetime)
+    const formatted = dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
     const timeStr = formatGameTime(nextGame.game_datetime)
     return (
       <div style={{
-        background: "#0d1f2d", borderRadius: 8,
-        padding: "12px 14px", textAlign: "left", fontSize: 13,
-        marginBottom: 12
+        marginBottom: 12,
+        padding: "8px 12px 16px",
+        background: "#0d1f2d",
+        borderRadius: 8,
       }}>
-        <p style={{ color: "#ffc425", fontWeight: "bold", marginBottom: 8, fontSize: 12 }}>
+        <div style={{ color: "#ffc425", fontSize: 13, fontWeight: "bold", marginBottom: 4, letterSpacing: "0.5px" }}>
           NEXT GAME {nextGame.game_type === "Spring Training" ? "· Spring Training" : ""}
-        </p>
-        <p style={{ fontSize: 15, fontWeight: "bold", color: "white", marginBottom: 4 }}>
-          {nextGame.away} @ {nextGame.home}
-        </p>
-        {timeStr && (
-          <p style={{ color: "#aaa", fontSize: 13 }}>{timeStr}</p>
-        )}
+        </div>
+        <div style={{ fontSize: 13, fontWeight: "bold" }}>
+          {nextGame.away} vs {nextGame.home}
+        </div>
+        <div style={{ color: "#aaa", fontSize: 12, lineHeight: 2.2}}>
+          {formatted} · {timeStr}
+          {nextGame.venue && (
+            <span style={{ color: "#7a9db5", fontSize: 11, display: "block", lineHeight: 1.9 }}>{nextGame.venue}</span>
+          )}
+        </div>
       </div>
     )
   }
@@ -77,10 +83,10 @@ function LiveGame({ live, prevGame, nextGame }) {
     return (
       <div style={{
         background: "#0d1f2d", borderRadius: 8,
-        padding: "12px 14px", textAlign: "left", fontSize: 13
+        padding: "12px 14px 4px", textAlign: "left", fontSize: 13
       }}>
         <p style={{ color: "#ffc425", fontWeight: "bold", marginBottom: 8 }}>
-          Previous Game {prevGame.game_type ? `(${prevGame.game_type})` : ""}
+          PREVIOUS GAME
         </p>
         {[
           { name: prevGame.away, score: prevGame.away_score },
@@ -113,11 +119,12 @@ function LiveGame({ live, prevGame, nextGame }) {
     )
   }
 
+
   const ScoringPlays = ({ summary }) => {
     if (!summary || summary.length === 0) return null
     return (
       <div style={{ marginTop: 12, textAlign: "left" }}>
-        <p style={{ color: "#ffc425", fontWeight: "bold", fontSize: 13, marginBottom: 8 }}>
+        <p style={{ color: "#ffc425", fontWeight: "bold", fontSize: 13, marginTop: 5 }}>
           Scoring Plays
         </p>
         {summary.map((play, i) => (

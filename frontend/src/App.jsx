@@ -34,6 +34,8 @@ function App() {
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [favoritesLoaded, setFavoritesLoaded] = useState(false)
+  const [pitchers, setPitchers] = useState([])
+  const [pitchersLoading, setPitchersLoading] = useState(true)
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -42,6 +44,13 @@ function App() {
     })
     return () => unsubscribe()
   }, [])
+
+  const fetchPitchers = () => {
+    fetch(`${API}/api/pitchers`)
+      .then(res => res.json())
+      .then(data => { setPitchers(data); setPitchersLoading(false) })
+      .catch(err => { console.error("Pitchers fetch error:", err); setPitchersLoading(false) })
+  }
 
   const fetchNextGame = () => {
     fetch(`${API}/api/nextgame`)
@@ -193,6 +202,7 @@ useEffect(() => {
 useEffect(() => {
   if (user) {
     fetchRoster()
+    fetchPitchers()
   }
 }, [user])
 
@@ -385,14 +395,14 @@ useEffect(() => {
           {loading ? (
             <p className="loading">Loading roster stats...</p>
           ) : (
-            <RosterTable players={players} onToggleFavorite={toggleFavorite} />
+            <RosterTable players={players} pitchers={pitchers} pitchersLoading={pitchersLoading} battersLoading={loading} onToggleFavorite={toggleFavorite} />
           )}
         </>
       )}
 
       {activeTab === "favorites" && (
         favoritesLoaded 
-          ? <FavoritesTab players={players} onToggleFavorite={toggleFavorite} playerGames={playerGames} />
+          ? <FavoritesTab players={players} onToggleFavorite={toggleFavorite} playerGames={playerGames} API={API} />
           : <p style={{ textAlign: "center", color: "#aaa", marginTop: 40 }}>Loading favorites...</p>
       )}
 

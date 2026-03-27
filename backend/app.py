@@ -112,6 +112,79 @@ def get_padres_batting_stats():
 
     return sorted(players, key=lambda x: x["avg"] if x["avg"] != "N/A" else "0", reverse=True)
 
+def get_padres_pitching_stats():
+    depth_data = requests.get("https://statsapi.mlb.com/api/v1/teams/135/roster", params={
+        "rosterType": "depthChart", "season": 2026
+    }).json()
+
+    starter_ids = set()
+    for player in depth_data.get("roster", []):
+        if player["position"]["abbreviation"] == "SP":
+            starter_ids.add(player["person"]["id"])
+
+    roster_data = requests.get("https://statsapi.mlb.com/api/v1/teams/135/roster", params={
+        "rosterType": "active", "season": 2026
+    }).json()
+
+    players = []
+    seen_ids = set()
+    for player in roster_data.get("roster", []):
+        person_id = player["person"]["id"]
+        name = player["person"]["fullName"]
+        position = player["position"]["abbreviation"]
+
+        if position != "P":
+            continue
+        if person_id in seen_ids:
+            continue
+        seen_ids.add(person_id)
+
+        person_data = requests.get(f"https://statsapi.mlb.com/api/v1/people/{person_id}").json()
+        pitch_hand = person_data.get("people", [{}])[0].get("pitchHand", {}).get("code", "R")
+        hand_label = "LHP" if pitch_hand == "L" else "RHP"
+
+        stats_data = requests.get(
+            f"https://statsapi.mlb.com/api/v1/people/{person_id}/stats",
+            params={"stats": "season", "group": "pitching", "season": 2026}
+        ).json()
+
+        stats_list = stats_data.get("stats", [])
+        splits = stats_list[0].get("splits", []) if stats_list else []
+        if splits:
+            s = splits[0]["stat"]
+            games = s.get("gamesPitched", 0)
+            wins = s.get("wins", 0)
+            losses = s.get("losses", 0)
+            era = s.get("era", "-.--")
+            ip = s.get("inningsPitched", "0.0")
+            so = s.get("strikeOuts", 0)
+            bb = s.get("baseOnBalls", 0)
+            whip = s.get("whip", "-.--")
+            saves = s.get("saves", 0)
+        else:
+            games = wins = losses = so = bb = saves = 0
+            era = whip = "-.--"
+            ip = "0.0"
+
+        players.append({
+            "name": name,
+            "position": hand_label,
+            "role": "SP" if person_id in starter_ids else "RP",
+            "player_id": person_id,
+            "team": "San Diego Padres",
+            "games": games,
+            "wins": wins,
+            "losses": losses,
+            "era": era,
+            "ip": ip,
+            "so": so,
+            "bb": bb,
+            "whip": whip,
+            "saves": saves,
+        })
+
+    return players
+
 @app.route("/api/game")
 def game_api():
     return jsonify(get_padres_game())
@@ -124,6 +197,10 @@ def roster_api():
     for p in players:
         p["favorited"] = p["player_id"] in favorites
     return jsonify(players)
+
+@app.route("/api/pitchers")
+def pitchers_api():
+    return jsonify(get_padres_pitching_stats())
 
 @app.route("/api/standings")
 def standings_api():
@@ -183,6 +260,44 @@ def next_game_api():
                 "game_type": label,
                 "venue": g.get("venue", {}).get("name", "")
             })
+    return jsonify(None)
+
+@app.route("/api/player-next-game")
+def player_next_game():
+    from datetime import timedelta
+    team_id = request.args.get("team_id", type=int)
+    if not team_id:
+        return jsonify(None)
+
+    today = date.today().strftime("%Y-%m-%d")
+    future_date = (date.today() + timedelta(days=14)).strftime("%Y-%m-%d")
+    url = "https://statsapi.mlb.com/api/v1/schedule"
+
+    for game_type in ["R", "S"]:
+        params = {
+            "sportId": 1, "teamId": team_id, "season": 2026,
+            "gameType": game_type,
+            "startDate": today, "endDate": future_date,
+            "hydrate": "linescore,venue"
+        }
+        data = requests.get(url, params=params).json()
+        upcoming = []
+        for d in data.get("dates", []):
+            for game in d["games"]:
+                if game["status"]["detailedState"] not in ("Final", "Game Over", "Completed Early"):
+                    upcoming.append(game)
+        if upcoming:
+            g = upcoming[0]
+            away = g["teams"]["away"]["team"]["name"]
+            home = g["teams"]["home"]["team"]["name"]
+            return jsonify({
+                "away": away,
+                "home": home,
+                "game_datetime": g["gameDate"],
+                "venue": g.get("venue", {}).get("name", ""),
+                "is_home": home != away and g["teams"]["home"]["team"]["id"] == team_id
+            })
+
     return jsonify(None)
 
 
@@ -271,7 +386,6 @@ def live_game_api():
 
     all_plays = plays.get("allPlays", [])
     completed_plays = [p for p in all_plays if p.get("about", {}).get("isComplete", False)]
-
     scoring_plays = [p for p in all_plays if p.get("about", {}).get("isScoringPlay", False)]
     scoring_summary = []
     for play in scoring_plays:
