@@ -371,7 +371,7 @@ def live_game_api():
     # ONLY check today — never look back at old finished games
     import time
     params = {"sportId": 1, "teamId": 135, "date": today, "hydrate": "linescore", "_": int(time.time())}
-    data = requests.get(schedule_url, params=params).json()
+    data = requests.get(schedule_url, params=params, headers={"Cache-Control": "no-cache", "Pragma": "no-cache"}).json()
     dates = data.get("dates", [])
 
     if not dates:
@@ -381,7 +381,7 @@ def live_game_api():
     game_pk = game["gamePk"]
     status = game["status"]["detailedState"]
 
-    live_data = requests.get(f"https://statsapi.mlb.com/api/v1.1/game/{game_pk}/feed/live").json()
+    live_data = requests.get(f"https://statsapi.mlb.com/api/v1.1/game/{game_pk}/feed/live", headers={"Cache-Control": "no-cache", "Pragma": "no-cache"}).json()
     linescore = live_data["liveData"]["linescore"]
     plays = live_data["liveData"]["plays"]
 
