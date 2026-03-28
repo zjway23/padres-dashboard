@@ -369,7 +369,8 @@ def live_game_api():
     schedule_url = "https://statsapi.mlb.com/api/v1/schedule"
 
     # ONLY check today — never look back at old finished games
-    params = {"sportId": 1, "teamId": 135, "date": today, "hydrate": "linescore"}
+    import time
+    params = {"sportId": 1, "teamId": 135, "date": today, "hydrate": "linescore", "_": int(time.time())}
     data = requests.get(schedule_url, params=params).json()
     dates = data.get("dates", [])
 
