@@ -1,9 +1,17 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
-import requests
 from datetime import date
 import os
+import requests
+
+mlb_session = requests.Session()
+mlb_session.headers.update({
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "Accept": "application/json",
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache"
+})
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
@@ -371,7 +379,7 @@ def live_game_api():
     # ONLY check today — never look back at old finished games
     import time
     params = {"sportId": 1, "teamId": 135, "date": today, "hydrate": "linescore", "_": int(time.time())}
-    data = requests.get(schedule_url, params=params, headers={"Cache-Control": "no-cache", "Pragma": "no-cache"}).json()
+    data = mlb_session.get(schedule_url, params=params).json()    
     dates = data.get("dates", [])
 
     if not dates:
@@ -381,7 +389,7 @@ def live_game_api():
     game_pk = game["gamePk"]
     status = game["status"]["detailedState"]
 
-    live_data = requests.get(f"https://statsapi.mlb.com/api/v1.1/game/{game_pk}/feed/live", headers={"Cache-Control": "no-cache", "Pragma": "no-cache"}).json()
+    live_data = mlb_session.get(f"https://statsapi.mlb.com/api/v1.1/game/{game_pk}/feed/live").json()
     linescore = live_data["liveData"]["linescore"]
     plays = live_data["liveData"]["plays"]
 
