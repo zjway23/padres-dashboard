@@ -1,0 +1,25 @@
+:root {
+  /* Colors */
+  --padres-gold: #ffc425;
+  --padres-dark-navy: #0d1f2d;
+  --padres-navy: #1a3a4a;
+  --padres-navy-mid: #1f4a5e;
+  --padres-highlight: rgba(255, 196, 37, 0.08);
+
+  /* Text */
+  --text-muted: #aaa;
+  --text-muted-light: #ccc;
+  --text-primary: white;
+
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 20px;
+
+  /* Typography */
+  --font-sm: 11px;
+  --font-base: 13px;
+  --font-md: 14px;
+}
