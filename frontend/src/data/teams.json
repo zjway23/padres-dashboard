@@ -2,6 +2,7 @@
   {
     "id": "padres",
     "name": "San Diego Padres",
+    "shortName": "Padres",
     "teamId": 135,
     "abbreviation": "SD",
     "division": "NL West",
@@ -10,6 +11,7 @@
   {
     "id": "dodgers",
     "name": "Los Angeles Dodgers",
+    "shortName": "Dodgers",
     "teamId": 119,
     "abbreviation": "LAD",
     "division": "NL West",
@@ -18,6 +20,7 @@
   {
     "id": "giants",
     "name": "San Francisco Giants",
+    "shortName": "Giants",
     "teamId": 137,
     "abbreviation": "SF",
     "division": "NL West",
@@ -26,6 +29,7 @@
   {
     "id": "rockies",
     "name": "Colorado Rockies",
+    "shortName": "Rockies",
     "teamId": 115,
     "abbreviation": "COL",
     "division": "NL West",
@@ -34,6 +38,7 @@
   {
     "id": "diamondbacks",
     "name": "Arizona Diamondbacks",
+    "shortName": "D-backs",
     "teamId": 109,
     "abbreviation": "ARI",
     "division": "NL West",
@@ -42,6 +47,7 @@
   {
     "id": "cubs",
     "name": "Chicago Cubs",
+    "shortName": "Cubs",
     "teamId": 112,
     "abbreviation": "CHC",
     "division": "NL Central",
@@ -50,6 +56,7 @@
   {
     "id": "brewers",
     "name": "Milwaukee Brewers",
+    "shortName": "Brewers",
     "teamId": 158,
     "abbreviation": "MIL",
     "division": "NL Central",
@@ -58,6 +65,7 @@
   {
     "id": "cardinals",
     "name": "St. Louis Cardinals",
+    "shortName": "Cardinals",
     "teamId": 138,
     "abbreviation": "STL",
     "division": "NL Central",
@@ -66,6 +74,7 @@
   {
     "id": "reds",
     "name": "Cincinnati Reds",
+    "shortName": "Reds",
     "teamId": 113,
     "abbreviation": "CIN",
     "division": "NL Central",
@@ -74,6 +83,7 @@
   {
     "id": "pirates",
     "name": "Pittsburgh Pirates",
+    "shortName": "Pirates",
     "teamId": 134,
     "abbreviation": "PIT",
     "division": "NL Central",
@@ -82,6 +92,7 @@
   {
     "id": "braves",
     "name": "Atlanta Braves",
+    "shortName": "Braves",
     "teamId": 144,
     "abbreviation": "ATL",
     "division": "NL East",
@@ -90,6 +101,7 @@
   {
     "id": "mets",
     "name": "New York Mets",
+    "shortName": "Mets",
     "teamId": 121,
     "abbreviation": "NYM",
     "division": "NL East",
@@ -98,6 +110,7 @@
   {
     "id": "phillies",
     "name": "Philadelphia Phillies",
+    "shortName": "Phillies",
     "teamId": 143,
     "abbreviation": "PHI",
     "division": "NL East",
@@ -106,6 +119,7 @@
   {
     "id": "marlins",
     "name": "Miami Marlins",
+    "shortName": "Marlins",
     "teamId": 146,
     "abbreviation": "MIA",
     "division": "NL East",
@@ -114,6 +128,7 @@
   {
     "id": "nationals",
     "name": "Washington Nationals",
+    "shortName": "Nationals",
     "teamId": 120,
     "abbreviation": "WSH",
     "division": "NL East",
@@ -122,6 +137,7 @@
   {
     "id": "astros",
     "name": "Houston Astros",
+    "shortName": "Astros",
     "teamId": 117,
     "abbreviation": "HOU",
     "division": "AL West",
@@ -130,6 +146,7 @@
   {
     "id": "angels",
     "name": "Los Angeles Angels",
+    "shortName": "Angels",
     "teamId": 108,
     "abbreviation": "LAA",
     "division": "AL West",
@@ -138,6 +155,7 @@
   {
     "id": "athletics",
     "name": "Oakland Athletics",
+    "shortName": "Athletics",
     "teamId": 133,
     "abbreviation": "OAK",
     "division": "AL West",
@@ -146,6 +164,7 @@
   {
     "id": "mariners",
     "name": "Seattle Mariners",
+    "shortName": "Mariners",
     "teamId": 136,
     "abbreviation": "SEA",
     "division": "AL West",
@@ -154,6 +173,7 @@
   {
     "id": "rangers",
     "name": "Texas Rangers",
+    "shortName": "Rangers",
     "teamId": 140,
     "abbreviation": "TEX",
     "division": "AL West",
@@ -162,6 +182,7 @@
   {
     "id": "whitesox",
     "name": "Chicago White Sox",
+    "shortName": "White Sox",
     "teamId": 145,
     "abbreviation": "CWS",
     "division": "AL Central",
@@ -170,6 +191,7 @@
   {
     "id": "guardians",
     "name": "Cleveland Guardians",
+    "shortName": "Guardians",
     "teamId": 114,
     "abbreviation": "CLE",
     "division": "AL Central",
@@ -178,6 +200,7 @@
   {
     "id": "tigers",
     "name": "Detroit Tigers",
+    "shortName": "Tigers",
     "teamId": 116,
     "abbreviation": "DET",
     "division": "AL Central",
@@ -186,6 +209,7 @@
   {
     "id": "royals",
     "name": "Kansas City Royals",
+    "shortName": "Royals",
     "teamId": 118,
     "abbreviation": "KC",
     "division": "AL Central",
@@ -194,6 +218,7 @@
   {
     "id": "twins",
     "name": "Minnesota Twins",
+    "shortName": "Twins",
     "teamId": 142,
     "abbreviation": "MIN",
     "division": "AL Central",
@@ -202,6 +227,7 @@
   {
     "id": "yankees",
     "name": "New York Yankees",
+    "shortName": "Yankees",
     "teamId": 147,
     "abbreviation": "NYY",
     "division": "AL East",
@@ -210,6 +236,7 @@
   {
     "id": "redsox",
     "name": "Boston Red Sox",
+    "shortName": "Red Sox",
     "teamId": 111,
     "abbreviation": "BOS",
     "division": "AL East",
@@ -218,6 +245,7 @@
   {
     "id": "rays",
     "name": "Tampa Bay Rays",
+    "shortName": "Rays",
     "teamId": 139,
     "abbreviation": "TB",
     "division": "AL East",
@@ -226,6 +254,7 @@
   {
     "id": "bluejays",
     "name": "Toronto Blue Jays",
+    "shortName": "Blue Jays",
     "teamId": 141,
     "abbreviation": "TOR",
     "division": "AL East",
@@ -234,6 +263,7 @@
   {
     "id": "orioles",
     "name": "Baltimore Orioles",
+    "shortName": "Orioles",
     "teamId": 110,
     "abbreviation": "BAL",
     "division": "AL East",

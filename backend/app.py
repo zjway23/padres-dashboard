@@ -155,58 +155,67 @@ def get_team_batting_stats(team_id=135):
 
     players = []
     for player in roster_data.get("roster", []):
-        person_id = player["person"]["id"]
-        name = player["person"]["fullName"]
-        position = player["position"]["abbreviation"]
+        try:
+            person_id = player["person"]["id"]
+            name = player["person"]["fullName"]
+            position = player["position"]["abbreviation"]
 
-        if position == "P":
+            if position == "P":
+                continue
+
+            stats_data = requests.get(
+                f"https://statsapi.mlb.com/api/v1/people/{person_id}/stats",
+                params={"stats": "season", "group": "hitting", "season": 2026}
+            ).json()
+
+            stats_list = stats_data.get("stats", [])
+            splits = stats_list[0].get("splits", []) if stats_list else []
+            if splits:
+                s = splits[0]["stat"]
+                players.append({
+                    "name": name,
+                    "position": position,
+                    "player_id": person_id,
+                    "team": team_name,
+                    "avg": s.get("avg", "N/A"),
+                    "hr": s.get("homeRuns", "N/A"),
+                    "rbi": s.get("rbi", "N/A"),
+                    "ops": s.get("ops", "N/A"),
+                    "obp": s.get("obp", "N/A"),
+                    "slg": s.get("slg", "N/A"),
+                    "hits": s.get("hits", "N/A"),
+                    "games": s.get("gamesPlayed", "N/A"),
+                    "doubles": s.get("doubles", "N/A"),
+                    "triples": s.get("triples", "N/A"),
+                    "sb": s.get("stolenBases", "N/A"),
+                    "cs": s.get("caughtStealing", "N/A"),
+                    "bb": s.get("baseOnBalls", "N/A"),
+                    "k": s.get("strikeOuts", "N/A")
+                })
+            else:
+                players.append({
+                    "name": name,
+                    "position": position,
+                    "player_id": person_id,
+                    "team": team_name,
+                    "avg": "N/A", "hr": "N/A",
+                    "rbi": "N/A", "ops": "N/A",
+                    "obp": "N/A", "slg": "N/A",
+                    "hits": "N/A", "games": "N/A",
+                    "doubles": "N/A", "triples": "N/A",
+                    "sb": "N/A", "cs": "N/A",
+                    "bb": "N/A", "k": "N/A"
+                })
+        except Exception:
             continue
 
-        stats_data = requests.get(
-            f"https://statsapi.mlb.com/api/v1/people/{person_id}/stats",
-            params={"stats": "season", "group": "hitting", "season": 2026}
-        ).json()
+    def sort_key(p):
+        try:
+            return float(p["avg"]) if p["avg"] != "N/A" else -1.0
+        except (ValueError, TypeError):
+            return -1.0
 
-        stats_list = stats_data.get("stats", [])
-        splits = stats_list[0].get("splits", []) if stats_list else []
-        if splits:
-            s = splits[0]["stat"]
-            players.append({
-                "name": name,
-                "position": position,
-                "player_id": person_id,
-                "team": team_name,
-                "avg": s.get("avg", "N/A"),
-                "hr": s.get("homeRuns", "N/A"),
-                "rbi": s.get("rbi", "N/A"),
-                "ops": s.get("ops", "N/A"),
-                "obp": s.get("obp", "N/A"),
-                "slg": s.get("slg", "N/A"),
-                "hits": s.get("hits", "N/A"),
-                "games": s.get("gamesPlayed", "N/A"),
-                "doubles": s.get("doubles", "N/A"),
-                "triples": s.get("triples", "N/A"),
-                "sb": s.get("stolenBases", "N/A"),
-                "cs": s.get("caughtStealing", "N/A"),
-                "bb": s.get("baseOnBalls", "N/A"),
-                "k": s.get("strikeOuts", "N/A")
-            })
-        else:
-            players.append({
-                "name": name,
-                "position": position,
-                "player_id": person_id,
-                "team": team_name,
-                "avg": "N/A", "hr": "N/A",
-                "rbi": "N/A", "ops": "N/A",
-                "obp": "N/A", "slg": "N/A",
-                "hits": "N/A", "games": "N/A",
-                "doubles": "N/A", "triples": "N/A",
-                "sb": "N/A", "cs": "N/A",
-                "bb": "N/A", "k": "N/A"
-            })
-
-    return sorted(players, key=lambda x: x["avg"] if x["avg"] != "N/A" else "0", reverse=True)
+    return sorted(players, key=sort_key, reverse=True)
 
 def get_team_pitching_stats(team_id=135):
     team_name = TEAM_FULL_NAMES.get(team_id, "Unknown Team")

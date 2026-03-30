@@ -1,3 +1,5 @@
+import teamsData from "../data/teams.json"
+
 function Diamond({ first, second, third }) {
   const base = (active) => ({
     width: 18, height: 18,
@@ -19,8 +21,9 @@ function Diamond({ first, second, third }) {
   )
 }
 
-function LiveGame({ live, prevGame, nextGame }) {
+function LiveGame({ live, prevGame, nextGame, favoriteTeam }) {
   const isLive = live && live.status === "In Progress"
+  const favoriteTeamName = teamsData.find(t => t.id === favoriteTeam)?.name || ""
 
   const getLastPlayColor = () => {
     if (!live?.last_play_event) return "transparent"
@@ -77,9 +80,7 @@ function LiveGame({ live, prevGame, nextGame }) {
 
   const PrevGameCard = () => {
     if (!prevGame) return null
-    const padresScore = prevGame.home.includes("Padres") ? prevGame.home_score : prevGame.away_score
-    const oppScore = prevGame.home.includes("Padres") ? prevGame.away_score : prevGame.home_score
-    const padresWon = padresScore > oppScore
+    const awayWon = prevGame.away_score > prevGame.home_score
     return (
       <div style={{
         background: "#0d1f2d", borderRadius: 8,
@@ -89,23 +90,22 @@ function LiveGame({ live, prevGame, nextGame }) {
           PREVIOUS GAME
         </p>
         {[
-          { name: prevGame.away, score: prevGame.away_score },
-          { name: prevGame.home, score: prevGame.home_score }
+          { name: prevGame.away, score: prevGame.away_score, won: awayWon },
+          { name: prevGame.home, score: prevGame.home_score, won: !awayWon }
         ].map((team, i) => {
-          const isPadres = team.name.includes("Padres")
-          const won = isPadres ? padresWon : !padresWon
+          const isFavorite = favoriteTeamName && team.name.includes(favoriteTeamName)
           return (
             <div key={i} style={{
               display: "flex", alignItems: "center", gap: 8,
               padding: "4px 0",
               borderBottom: i === 0 ? "1px solid #1a3a4a" : "none"
             }}>
-              <span style={{ color: won ? "#4caf50" : "#f44336", fontWeight: "bold", width: 16 }}>
-                {won ? "W" : "L"}
+              <span style={{ color: team.won ? "#4caf50" : "#f44336", fontWeight: "bold", width: 16 }}>
+                {team.won ? "W" : "L"}
               </span>
               <span style={{
-                color: isPadres ? "#ffc425" : "white",
-                fontWeight: isPadres ? "bold" : "normal",
+                color: isFavorite ? "var(--color-accent)" : "white",
+                fontWeight: isFavorite ? "bold" : "normal",
                 minWidth: 160
               }}>
                 {team.name}
