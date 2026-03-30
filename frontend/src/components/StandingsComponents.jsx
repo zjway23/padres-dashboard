@@ -1,9 +1,20 @@
+// frontend/src/components/shared/StandingsComponents.jsx
+
 const NL_PREFIX = "National League "
 
-function StandingsRow({ team, showSeed = true }) {
+export function SectionDivider({ label, standalone = false }) {
+  return (
+    <div className={`section-divider${standalone ? " section-divider--standalone" : ""}`}>
+      <div className="section-divider-line" />
+      <span className="section-divider-label">{label}</span>
+      <div className="section-divider-line" />
+    </div>
+  )
+}
+
+export function StandingsRow({ team, showSeed = true }) {
   const isPadres = team.name.includes("Padres")
   const isDivision = team.category === "division"
-
   return (
     <tr className={`playoff-row${isPadres ? " playoff-row--padres" : ""}`}>
       <td className="playoff-td playoff-td--seed">
@@ -34,4 +45,22 @@ function StandingsRow({ team, showSeed = true }) {
   )
 }
 
-export default StandingsRow
+export function StandingsTable({ children }) {
+  return (
+    <table className="playoff-table">
+      <thead>
+        <tr>
+          <th className="playoff-th playoff-th--seed"></th>
+          <th className="playoff-th">Team</th>
+          <th className="playoff-th">Div</th>
+          <th className="playoff-th playoff-th--center">W</th>
+          <th className="playoff-th playoff-th--center">L</th>
+          <th className="playoff-th playoff-th--center">GB</th>
+          <th className="playoff-th playoff-th--center">PCT</th>
+          <th className="playoff-th playoff-th--center">REM</th>
+        </tr>
+      </thead>
+      <tbody>{children}</tbody>
+    </table>
+  )
+}

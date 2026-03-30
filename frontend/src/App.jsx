@@ -392,11 +392,13 @@ useEffect(() => {
             <LiveGame live={live} prevGame={prevGame} nextGame={nextGame} />
             <Standings teams={standings} wildcard={wildcard} nlPlayoff={nlPlayoff} />
           </div>
-          {loading ? (
-            <p className="loading">Loading roster stats...</p>
-          ) : (
-            <RosterTable players={players} pitchers={pitchers} pitchersLoading={pitchersLoading} battersLoading={loading} onToggleFavorite={toggleFavorite} />
-          )}
+          <RosterTable
+            players={players}
+            pitchers={pitchers}
+            pitchersLoading={pitchersLoading}
+            battersLoading={loading} // Pass loading state for batters
+            onToggleFavorite={toggleFavorite}
+          />
         </>
       )}
 

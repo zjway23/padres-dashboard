@@ -1,6 +1,4 @@
-import SectionDivider from "./shared/SectionDivider"
-import StandingsTable from "./shared/StandingsTable"
-import StandingsRow from "./shared/StandingsRow"
+import { SectionDivider, StandingsTable, StandingsRow } from "./shared/StandingsComponents"
 
 function NLPlayoff({ teams }) {
   if (!teams || teams.length === 0) return (
