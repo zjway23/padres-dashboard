@@ -16,7 +16,7 @@ body {
 }
 
 h1 {
-  color: #ffc425;
+  color: var(--color-accent);
   text-align: center;
   font-size: 2rem;
   margin-bottom: 30px;
@@ -34,7 +34,7 @@ h1 {
   min-height: 400px;
 }
 
-.game-card h2 { color: #ffc425; margin-bottom: 10px; }
+.game-card h2 { color: var(--color-accent); margin-bottom: 10px; }
 
 .matchup { margin-bottom: 10px; }
 
@@ -53,7 +53,7 @@ h1 {
 }
 
 .roster-section h2 {
-  color: #ffc425;
+  color: var(--color-accent);
   margin-bottom: 15px;
   font-size: 1.3rem;
 }
@@ -67,7 +67,7 @@ table {
 }
 
 th {
-  background-color: #ffc425;
+  background-color: var(--color-accent);
   color: #0d1f2d;
   padding: 12px 16px;
   text-align: center;
@@ -94,7 +94,7 @@ tr:hover td { background-color: #1f4a5e; }
 
 .pos-badge {
   background-color: #0d1f2d;
-  color: #ffc425;
+  color: var(--color-accent);
   padding: 2px 8px;
   border-radius: 4px;
   font-size: 12px;
@@ -119,19 +119,19 @@ tr:hover td { background-color: #1f4a5e; }
 }
 
 .standings-section h2 {
-  color: #ffc425;
+  color: var(--color-accent);
   margin-bottom: 15px;
   font-size: 1.3rem;
   text-align: center;
 }
 
 .padres-row td {
-  color: #ffc425;
+  color: var(--color-accent);
   font-weight: bold;
 }
 
 .standings-table-wrapper {
-  border: 3.2px solid #ffc425;
+  border: 3.2px solid var(--color-accent);
   border-radius: 10px;
   overflow-x: auto;
   margin-bottom: 16px;
@@ -151,8 +151,8 @@ tr:hover td { background-color: #1f4a5e; }
 
 .tab {
   background: transparent;
-  border: 1.5px solid #ffc425;
-  color: #ffc425;
+  border: 1.5px solid var(--color-accent);
+  color: var(--color-accent);
   padding: 8px 24px;
   border-radius: 20px;
   cursor: pointer;
@@ -162,10 +162,10 @@ tr:hover td { background-color: #1f4a5e; }
 }
 
 .tab:hover {
-  background: rgba(255, 196, 37, 0.1);
+  background: var(--color-highlight);
 }
 
 .tab.active {
-  background: #ffc425;
+  background: var(--color-accent);
   color: #0d1f2d;
 }

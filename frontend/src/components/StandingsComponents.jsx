@@ -1,4 +1,4 @@
-// frontend/src/components/shared/StandingsComponents.jsx
+// frontend/src/components/StandingsComponents.jsx
 
 const NL_PREFIX = "National League "
 
@@ -12,11 +12,11 @@ export function SectionDivider({ label, standalone = false }) {
   )
 }
 
-export function StandingsRow({ team, showSeed = true }) {
-  const isPadres = team.name.includes("Padres")
+export function StandingsRow({ team, showSeed = true, favoriteTeamName = "" }) {
+  const isFavorite = favoriteTeamName ? team.name === favoriteTeamName : team.name.includes("Padres")
   const isDivision = team.category === "division"
   return (
-    <tr className={`playoff-row${isPadres ? " playoff-row--padres" : ""}`}>
+    <tr className={`playoff-row${isFavorite ? " playoff-row--padres" : ""}`}>
       <td className="playoff-td playoff-td--seed">
         {showSeed && team.seed ? (
           <span className={`seed-badge${isDivision ? " seed-badge--division" : " seed-badge--wildcard"}`}>
@@ -26,7 +26,7 @@ export function StandingsRow({ team, showSeed = true }) {
           <span className="seed-badge--empty" />
         )}
       </td>
-      <td className={`playoff-td playoff-td--name${isPadres ? " playoff-td--name-padres" : ""}`}>
+      <td className={`playoff-td playoff-td--name${isFavorite ? " playoff-td--name-padres" : ""}`}>
         {team.name}
       </td>
       <td className="playoff-td playoff-td--div">

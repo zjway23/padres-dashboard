@@ -6,15 +6,27 @@ import LiveGame from "./components/LiveGame"
 import RosterTable from "./components/RosterTable"
 import Standings from "./components/Standings"
 import FavoritesTab from "./components/FavoritesTab"
+import Settings from "./components/Settings"
 import "./App.css"
 import NLPlayoff from "./components/NLPlayoff"
+import teamsData from "./data/teams.json"
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:5001"
 
 /* const API = import.meta.env.VITE_API_URL || "http://localhost:5001" */
 /* const API = import.meta.env.VITE_API_URL || "https://padres-dashboard.onrender.com" */
 
-
+function applyTeamTheme(teamId) {
+  const team = teamsData.find(t => t.id === teamId) || teamsData[0]
+  const root = document.documentElement
+  root.style.setProperty("--color-accent", team.colors.accent)
+  root.style.setProperty("--color-dark", team.colors.primary)
+  const hex = team.colors.accent.replace("#", "")
+  const r = parseInt(hex.slice(0, 2), 16)
+  const g = parseInt(hex.slice(2, 4), 16)
+  const b = parseInt(hex.slice(4, 6), 16)
+  root.style.setProperty("--color-highlight", `rgba(${r}, ${g}, ${b}, 0.10)`)
+}
 
 function App() {
   const [live, setLive] = useState(null)
@@ -36,6 +48,26 @@ function App() {
   const [favoritesLoaded, setFavoritesLoaded] = useState(false)
   const [pitchers, setPitchers] = useState([])
   const [pitchersLoading, setPitchersLoading] = useState(true)
+  const [favoriteTeam, setFavoriteTeam] = useState(() => localStorage.getItem("favoriteTeam") || "padres")
+  const [settingsOpen, setSettingsOpen] = useState(false)
+
+  useEffect(() => {
+    applyTeamTheme(favoriteTeam)
+  }, [favoriteTeam])
+
+  const handleTeamChange = (teamId) => {
+    localStorage.setItem("favoriteTeam", teamId)
+    setFavoriteTeam(teamId)
+    setPlayers([])
+    setStandings([])
+    setLive(null)
+    setPrevGame(null)
+    setNextGame(null)
+    setPitchers([])
+    setPitchersLoading(true)
+    setLoading(true)
+    setFavoritesLoaded(false)
+  }
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -45,15 +77,15 @@ function App() {
     return () => unsubscribe()
   }, [])
 
-  const fetchPitchers = () => {
-    fetch(`${API}/api/pitchers`)
+  const fetchPitchers = (team) => {
+    fetch(`${API}/api/pitchers?team=${team}`)
       .then(res => res.json())
       .then(data => { setPitchers(data); setPitchersLoading(false) })
       .catch(err => { console.error("Pitchers fetch error:", err); setPitchersLoading(false) })
   }
 
-  const fetchNextGame = () => {
-    fetch(`${API}/api/nextgame`)
+  const fetchNextGame = (team) => {
+    fetch(`${API}/api/nextgame?team=${team}`)
       .then(res => res.json())
       .then(data => setNextGame(data))
       .catch(err => console.error("Next game fetch error:", err))
@@ -97,15 +129,15 @@ function App() {
       .catch(() => setSearching(false))
   }
 
-  const fetchLive = () => {
-     fetch(`${API}/api/live`)
+  const fetchLive = (team) => {
+     fetch(`${API}/api/live?team=${team}`)
       .then(res => res.json())
       .then(data => setLive(data))
       .catch(err => console.error("Live fetch error:", err))
   }
 
-  const fetchFavoritesWithRoster = (rosterData) => {
-    fetch(`${API}/api/favorites?uid=${user.uid}`)
+  const fetchFavoritesWithRoster = (rosterData, team) => {
+    fetch(`${API}/api/favorites?uid=${user.uid}&team=${team}`)
       .then(res => res.json())
       .then(favs => {
         const existingIds = new Set(rosterData.map(p => p.player_id))
@@ -138,26 +170,26 @@ function App() {
     })
   }
 
-  const fetchRoster = () => {
-    fetch(`${API}/api/roster?uid=${user.uid}`)
+  const fetchRoster = (team) => {
+    fetch(`${API}/api/roster?team=${team}&uid=${user.uid}`)
       .then(res => res.json())
       .then(data => {
         setPlayers(data)
         setLoading(false)
-        fetchFavoritesWithRoster(data)
+        fetchFavoritesWithRoster(data, team)
       })
       .catch(err => console.error("Roster fetch error:", err))
   }
 
-  const fetchStandings = () => {
-    fetch(`${API}/api/standings`)
+  const fetchStandings = (team) => {
+    fetch(`${API}/api/standings?team=${team}`)
       .then(res => res.json())
       .then(data => setStandings(data))
       .catch(err => console.error("Standings fetch error:", err))
   }
 
-  const fetchPrevGame = () => {
-    fetch(`${API}/api/prevgame`)
+  const fetchPrevGame = (team) => {
+    fetch(`${API}/api/prevgame?team=${team}`)
       .then(res => res.json())
       .then(data => setPrevGame(data))
       .catch(err => console.error("Prev game fetch error:", err))
@@ -183,28 +215,29 @@ function App() {
       name: player.name,
       position: player.position,
       team: player.team,
-      uid: user.uid
+      uid: user.uid,
+      favorite_team: favoriteTeam
     })
   }).catch(err => console.error("Favorite error:", err))
 }
 
 useEffect(() => {
-  fetchLive()
-  fetchStandings()
-  fetchPrevGame()
-  fetchNextGame()
+  fetchLive(favoriteTeam)
+  fetchStandings(favoriteTeam)
+  fetchPrevGame(favoriteTeam)
+  fetchNextGame(favoriteTeam)
   fetchWildcard()
   fetchNlPlayoff()
-  const interval = setInterval(fetchLive, 15000)
+  const interval = setInterval(() => fetchLive(favoriteTeam), 15000)
   return () => clearInterval(interval)
-}, [])
+}, [favoriteTeam])
 
 useEffect(() => {
   if (user) {
-    fetchRoster()
-    fetchPitchers()
+    fetchRoster(favoriteTeam)
+    fetchPitchers(favoriteTeam)
   }
-}, [user])
+}, [user, favoriteTeam])
 
   if (authLoading) return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0a1929" }}>
@@ -214,26 +247,50 @@ useEffect(() => {
 
   if (!user) return <Login />
 
+  const favoriteTeamName = teamsData.find(t => t.id === favoriteTeam)?.name || "MLB"
+
   return (
     <div className="app">
+      {settingsOpen && (
+        <Settings
+          favoriteTeam={favoriteTeam}
+          onSave={(teamId) => { handleTeamChange(teamId); setSettingsOpen(false) }}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
       <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 24 }}>
-        <h1 style={{ margin: 0 }}>Padres Dashboard</h1>
-        <button
-          onClick={() => signOut(auth)}
-          style={{
-            position: "absolute",
-            right: 0,
-            background: "transparent",
-            border: "1.5px solid #aaa",
-            color: "#aaa",
-            borderRadius: 8,
-            padding: "4px 10px",
-            fontSize: 12,
-            cursor: "pointer"
-          }}
-        >
-          Log out
-        </button>
+        <h1 style={{ margin: 0 }}>{favoriteTeamName} Dashboard</h1>
+        <div style={{ position: "absolute", right: 0, display: "flex", gap: 8 }}>
+          <button
+            onClick={() => setSettingsOpen(true)}
+            title="Settings"
+            style={{
+              background: "transparent",
+              border: "1.5px solid var(--color-accent)",
+              color: "var(--color-accent)",
+              borderRadius: 8,
+              padding: "4px 10px",
+              fontSize: 16,
+              cursor: "pointer"
+            }}
+          >
+            ⚙️
+          </button>
+          <button
+            onClick={() => signOut(auth)}
+            style={{
+              background: "transparent",
+              border: "1.5px solid #aaa",
+              color: "#aaa",
+              borderRadius: 8,
+              padding: "4px 10px",
+              fontSize: 12,
+              cursor: "pointer"
+            }}
+          >
+            Log out
+          </button>
+        </div>
       </div>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 16, position: "relative" }}>
@@ -390,13 +447,13 @@ useEffect(() => {
         <>
           <div className="top-row" style={{ minHeight: 280 }}>
             <LiveGame live={live} prevGame={prevGame} nextGame={nextGame} />
-            <Standings teams={standings} wildcard={wildcard} nlPlayoff={nlPlayoff} />
+            <Standings teams={standings} wildcard={wildcard} nlPlayoff={nlPlayoff} favoriteTeam={favoriteTeam} />
           </div>
           <RosterTable
             players={players}
             pitchers={pitchers}
             pitchersLoading={pitchersLoading}
-            battersLoading={loading} // Pass loading state for batters
+            battersLoading={loading}
             onToggleFavorite={toggleFavorite}
           />
         </>

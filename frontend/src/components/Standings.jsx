@@ -1,9 +1,12 @@
-import { SectionDivider, StandingsTable, StandingsRow } from "./shared/StandingsComponents"
+import { SectionDivider, StandingsTable, StandingsRow } from "./StandingsComponents"
+import teamsData from "../data/teams.json"
 
-function Standings({ teams, nlPlayoff }) {
+function Standings({ teams, nlPlayoff, favoriteTeam }) {
+  const favoriteTeamName = teamsData.find(t => t.id === favoriteTeam)?.name || ""
+
   return (
     <div className="standings-section">
-      <h2>NL West Standings</h2>
+      <h2>Standings</h2>
       <div className="standings-table-wrapper">
         <table>
           <thead>
@@ -18,7 +21,7 @@ function Standings({ teams, nlPlayoff }) {
           </thead>
           <tbody>
             {teams.map((t, i) => (
-              <tr key={i} className={t.name.includes("Padres") ? "padres-row" : ""}>
+              <tr key={i} className={t.name === favoriteTeamName ? "padres-row" : ""}>
                 <td>{t.name}</td>
                 <td>{t.wins}</td>
                 <td>{t.losses}</td>
@@ -46,11 +49,11 @@ function Standings({ teams, nlPlayoff }) {
                     <tr className="divider-row">
                       <td colSpan={8}><SectionDivider label="DIVISION LEADERS" /></td>
                     </tr>
-                    {divLeaders.map((t, i) => <StandingsRow key={i} team={t} showSeed={true} />)}
+                    {divLeaders.map((t, i) => <StandingsRow key={i} team={t} showSeed={true} favoriteTeamName={favoriteTeamName} />)}
                     <tr className="divider-row">
                       <td colSpan={8}><SectionDivider label="WILD CARD" /></td>
                     </tr>
-                    {wildCards.map((t, i) => <StandingsRow key={i} team={t} showSeed={true} />)}
+                    {wildCards.map((t, i) => <StandingsRow key={i} team={t} showSeed={true} favoriteTeamName={favoriteTeamName} />)}
                   </StandingsTable>
 
                   <SectionDivider label="OUT OF PLAYOFFS" standalone={true} />
@@ -58,7 +61,7 @@ function Standings({ teams, nlPlayoff }) {
                   <div className="eliminated-scroll">
                     <table className="playoff-table">
                       <tbody>
-                        {eliminated.map((t, i) => <StandingsRow key={i} team={t} showSeed={false} />)}
+                        {eliminated.map((t, i) => <StandingsRow key={i} team={t} showSeed={false} favoriteTeamName={favoriteTeamName} />)}
                       </tbody>
                     </table>
                   </div>
