@@ -1,0 +1,242 @@
+[
+  {
+    "id": "padres",
+    "name": "San Diego Padres",
+    "teamId": 135,
+    "abbreviation": "SD",
+    "division": "NL West",
+    "colors": { "primary": "#002D62", "accent": "#FFC425" }
+  },
+  {
+    "id": "dodgers",
+    "name": "Los Angeles Dodgers",
+    "teamId": 119,
+    "abbreviation": "LAD",
+    "division": "NL West",
+    "colors": { "primary": "#003087", "accent": "#005A9C" }
+  },
+  {
+    "id": "giants",
+    "name": "San Francisco Giants",
+    "teamId": 137,
+    "abbreviation": "SF",
+    "division": "NL West",
+    "colors": { "primary": "#27251F", "accent": "#FD5015" }
+  },
+  {
+    "id": "rockies",
+    "name": "Colorado Rockies",
+    "teamId": 115,
+    "abbreviation": "COL",
+    "division": "NL West",
+    "colors": { "primary": "#33006F", "accent": "#C4CED4" }
+  },
+  {
+    "id": "diamondbacks",
+    "name": "Arizona Diamondbacks",
+    "teamId": 109,
+    "abbreviation": "ARI",
+    "division": "NL West",
+    "colors": { "primary": "#A71930", "accent": "#E3D4AD" }
+  },
+  {
+    "id": "cubs",
+    "name": "Chicago Cubs",
+    "teamId": 112,
+    "abbreviation": "CHC",
+    "division": "NL Central",
+    "colors": { "primary": "#0E3386", "accent": "#CC3433" }
+  },
+  {
+    "id": "brewers",
+    "name": "Milwaukee Brewers",
+    "teamId": 158,
+    "abbreviation": "MIL",
+    "division": "NL Central",
+    "colors": { "primary": "#0A2351", "accent": "#B6922E" }
+  },
+  {
+    "id": "cardinals",
+    "name": "St. Louis Cardinals",
+    "teamId": 138,
+    "abbreviation": "STL",
+    "division": "NL Central",
+    "colors": { "primary": "#0C2340", "accent": "#C41E3A" }
+  },
+  {
+    "id": "reds",
+    "name": "Cincinnati Reds",
+    "teamId": 113,
+    "abbreviation": "CIN",
+    "division": "NL Central",
+    "colors": { "primary": "#1a0a0a", "accent": "#C6011F" }
+  },
+  {
+    "id": "pirates",
+    "name": "Pittsburgh Pirates",
+    "teamId": 134,
+    "abbreviation": "PIT",
+    "division": "NL Central",
+    "colors": { "primary": "#27251F", "accent": "#FDB827" }
+  },
+  {
+    "id": "braves",
+    "name": "Atlanta Braves",
+    "teamId": 144,
+    "abbreviation": "ATL",
+    "division": "NL East",
+    "colors": { "primary": "#13274F", "accent": "#CE1141" }
+  },
+  {
+    "id": "mets",
+    "name": "New York Mets",
+    "teamId": 121,
+    "abbreviation": "NYM",
+    "division": "NL East",
+    "colors": { "primary": "#002D72", "accent": "#FF5910" }
+  },
+  {
+    "id": "phillies",
+    "name": "Philadelphia Phillies",
+    "teamId": 143,
+    "abbreviation": "PHI",
+    "division": "NL East",
+    "colors": { "primary": "#002D72", "accent": "#E81828" }
+  },
+  {
+    "id": "marlins",
+    "name": "Miami Marlins",
+    "teamId": 146,
+    "abbreviation": "MIA",
+    "division": "NL East",
+    "colors": { "primary": "#00A3E0", "accent": "#EF3340" }
+  },
+  {
+    "id": "nationals",
+    "name": "Washington Nationals",
+    "teamId": 120,
+    "abbreviation": "WSH",
+    "division": "NL East",
+    "colors": { "primary": "#14225A", "accent": "#AB0003" }
+  },
+  {
+    "id": "astros",
+    "name": "Houston Astros",
+    "teamId": 117,
+    "abbreviation": "HOU",
+    "division": "AL West",
+    "colors": { "primary": "#002D62", "accent": "#EB6E1F" }
+  },
+  {
+    "id": "angels",
+    "name": "Los Angeles Angels",
+    "teamId": 108,
+    "abbreviation": "LAA",
+    "division": "AL West",
+    "colors": { "primary": "#003263", "accent": "#BA0021" }
+  },
+  {
+    "id": "athletics",
+    "name": "Oakland Athletics",
+    "teamId": 133,
+    "abbreviation": "OAK",
+    "division": "AL West",
+    "colors": { "primary": "#003831", "accent": "#EFB21E" }
+  },
+  {
+    "id": "mariners",
+    "name": "Seattle Mariners",
+    "teamId": 136,
+    "abbreviation": "SEA",
+    "division": "AL West",
+    "colors": { "primary": "#0C2C56", "accent": "#005C5C" }
+  },
+  {
+    "id": "rangers",
+    "name": "Texas Rangers",
+    "teamId": 140,
+    "abbreviation": "TEX",
+    "division": "AL West",
+    "colors": { "primary": "#003278", "accent": "#C0111F" }
+  },
+  {
+    "id": "whitesox",
+    "name": "Chicago White Sox",
+    "teamId": 145,
+    "abbreviation": "CWS",
+    "division": "AL Central",
+    "colors": { "primary": "#27251F", "accent": "#C4CED3" }
+  },
+  {
+    "id": "guardians",
+    "name": "Cleveland Guardians",
+    "teamId": 114,
+    "abbreviation": "CLE",
+    "division": "AL Central",
+    "colors": { "primary": "#00385D", "accent": "#E31937" }
+  },
+  {
+    "id": "tigers",
+    "name": "Detroit Tigers",
+    "teamId": 116,
+    "abbreviation": "DET",
+    "division": "AL Central",
+    "colors": { "primary": "#0C2340", "accent": "#FA4616" }
+  },
+  {
+    "id": "royals",
+    "name": "Kansas City Royals",
+    "teamId": 118,
+    "abbreviation": "KC",
+    "division": "AL Central",
+    "colors": { "primary": "#174885", "accent": "#BD9B60" }
+  },
+  {
+    "id": "twins",
+    "name": "Minnesota Twins",
+    "teamId": 142,
+    "abbreviation": "MIN",
+    "division": "AL Central",
+    "colors": { "primary": "#002B5C", "accent": "#D31145" }
+  },
+  {
+    "id": "yankees",
+    "name": "New York Yankees",
+    "teamId": 147,
+    "abbreviation": "NYY",
+    "division": "AL East",
+    "colors": { "primary": "#132448", "accent": "#C4CED3" }
+  },
+  {
+    "id": "redsox",
+    "name": "Boston Red Sox",
+    "teamId": 111,
+    "abbreviation": "BOS",
+    "division": "AL East",
+    "colors": { "primary": "#0C2340", "accent": "#BD3039" }
+  },
+  {
+    "id": "rays",
+    "name": "Tampa Bay Rays",
+    "teamId": 139,
+    "abbreviation": "TB",
+    "division": "AL East",
+    "colors": { "primary": "#092C5C", "accent": "#8FBCE6" }
+  },
+  {
+    "id": "bluejays",
+    "name": "Toronto Blue Jays",
+    "teamId": 141,
+    "abbreviation": "TOR",
+    "division": "AL East",
+    "colors": { "primary": "#134A8E", "accent": "#1D2D5C" }
+  },
+  {
+    "id": "orioles",
+    "name": "Baltimore Orioles",
+    "teamId": 110,
+    "abbreviation": "BAL",
+    "division": "AL East",
+    "colors": { "primary": "#27251F", "accent": "#DF4601" }
+  }
+]
