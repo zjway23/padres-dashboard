@@ -13,6 +13,92 @@ mlb_session.headers.update({
     "Pragma": "no-cache"
 })
 
+# All 30 MLB teams mapped to their MLB Stats API team IDs
+TEAM_IDS = {
+    # NL West
+    "padres": 135,
+    "dodgers": 119,
+    "giants": 137,
+    "rockies": 115,
+    "diamondbacks": 109,
+    "dbacks": 109,
+    # NL Central
+    "cubs": 112,
+    "brewers": 158,
+    "cardinals": 138,
+    "reds": 113,
+    "pirates": 134,
+    # NL East
+    "braves": 144,
+    "mets": 121,
+    "phillies": 143,
+    "marlins": 146,
+    "nationals": 120,
+    # AL West
+    "astros": 117,
+    "angels": 108,
+    "athletics": 133,
+    "mariners": 136,
+    "rangers": 140,
+    # AL Central
+    "whitesox": 145,
+    "guardians": 114,
+    "tigers": 116,
+    "royals": 118,
+    "twins": 142,
+    # AL East
+    "yankees": 147,
+    "redsox": 111,
+    "rays": 139,
+    "bluejays": 141,
+    "orioles": 110,
+}
+
+TEAM_FULL_NAMES = {
+    135: "San Diego Padres",
+    119: "Los Angeles Dodgers",
+    137: "San Francisco Giants",
+    115: "Colorado Rockies",
+    109: "Arizona Diamondbacks",
+    112: "Chicago Cubs",
+    158: "Milwaukee Brewers",
+    138: "St. Louis Cardinals",
+    113: "Cincinnati Reds",
+    134: "Pittsburgh Pirates",
+    144: "Atlanta Braves",
+    121: "New York Mets",
+    143: "Philadelphia Phillies",
+    146: "Miami Marlins",
+    120: "Washington Nationals",
+    117: "Houston Astros",
+    108: "Los Angeles Angels",
+    133: "Oakland Athletics",
+    136: "Seattle Mariners",
+    140: "Texas Rangers",
+    145: "Chicago White Sox",
+    114: "Cleveland Guardians",
+    116: "Detroit Tigers",
+    118: "Kansas City Royals",
+    142: "Minnesota Twins",
+    147: "New York Yankees",
+    111: "Boston Red Sox",
+    139: "Tampa Bay Rays",
+    141: "Toronto Blue Jays",
+    110: "Baltimore Orioles",
+}
+
+
+def resolve_team_id(team_param, default=135):
+    """Convert a team name slug (e.g. 'dodgers') to an MLB Stats API team ID."""
+    return TEAM_IDS.get(normalize_team_key(team_param), default)
+
+
+def normalize_team_key(team_param, default="padres"):
+    """Normalize a team name to a consistent lowercase slug for lookups and storage."""
+    if not team_param:
+        return default
+    return team_param.lower().replace(" ", "").replace("-", "")
+
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///padres.db")
@@ -28,16 +114,17 @@ class FavoritePlayer(db.Model):
     position = db.Column(db.String(20))
     team = db.Column(db.String(100))
     uid = db.Column(db.String(200))
+    favorite_team = db.Column(db.String(50), nullable=True, default="padres")
 
 with app.app_context():
     db.create_all()
 
-def get_padres_game():
+def get_team_game(team_id=135):
     today = date.today().strftime("%Y-%m-%d")
     url = "https://statsapi.mlb.com/api/v1/schedule"
     params = {
         "sportId": 1,
-        "teamId": 135,
+        "teamId": team_id,
         "date": today,
         "hydrate": "linescore"
     }
@@ -58,8 +145,9 @@ def get_padres_game():
         "status": game["status"]["detailedState"]
     }
 
-def get_padres_batting_stats():
-    roster_url = "https://statsapi.mlb.com/api/v1/teams/135/roster"
+def get_team_batting_stats(team_id=135):
+    team_name = TEAM_FULL_NAMES.get(team_id, "Unknown Team")
+    roster_url = f"https://statsapi.mlb.com/api/v1/teams/{team_id}/roster"
     roster_data = requests.get(roster_url, params={
         "rosterType": "active",
         "season": 2026
@@ -87,7 +175,7 @@ def get_padres_batting_stats():
                 "name": name,
                 "position": position,
                 "player_id": person_id,
-                "team": "San Diego Padres",
+                "team": team_name,
                 "avg": s.get("avg", "N/A"),
                 "hr": s.get("homeRuns", "N/A"),
                 "rbi": s.get("rbi", "N/A"),
@@ -108,7 +196,7 @@ def get_padres_batting_stats():
                 "name": name,
                 "position": position,
                 "player_id": person_id,
-                "team": "San Diego Padres",
+                "team": team_name,
                 "avg": "N/A", "hr": "N/A",
                 "rbi": "N/A", "ops": "N/A",
                 "obp": "N/A", "slg": "N/A",
@@ -120,8 +208,9 @@ def get_padres_batting_stats():
 
     return sorted(players, key=lambda x: x["avg"] if x["avg"] != "N/A" else "0", reverse=True)
 
-def get_padres_pitching_stats():
-    depth_data = requests.get("https://statsapi.mlb.com/api/v1/teams/135/roster", params={
+def get_team_pitching_stats(team_id=135):
+    team_name = TEAM_FULL_NAMES.get(team_id, "Unknown Team")
+    depth_data = requests.get(f"https://statsapi.mlb.com/api/v1/teams/{team_id}/roster", params={
         "rosterType": "depthChart", "season": 2026
     }).json()
 
@@ -130,7 +219,7 @@ def get_padres_pitching_stats():
         if player["position"]["abbreviation"] == "SP":
             starter_ids.add(player["person"]["id"])
 
-    roster_data = requests.get("https://statsapi.mlb.com/api/v1/teams/135/roster", params={
+    roster_data = requests.get(f"https://statsapi.mlb.com/api/v1/teams/{team_id}/roster", params={
         "rosterType": "active", "season": 2026
     }).json()
 
@@ -179,7 +268,7 @@ def get_padres_pitching_stats():
             "position": hand_label,
             "role": "SP" if person_id in starter_ids else "RP",
             "player_id": person_id,
-            "team": "San Diego Padres",
+            "team": team_name,
             "games": games,
             "wins": wins,
             "losses": losses,
@@ -195,26 +284,34 @@ def get_padres_pitching_stats():
 
 @app.route("/api/game")
 def game_api():
-    return jsonify(get_padres_game())
+    team_param = request.args.get("team", "padres")
+    team_id = resolve_team_id(team_param)
+    return jsonify(get_team_game(team_id))
 
 @app.route("/api/roster")
 def roster_api():
-    players = get_padres_batting_stats()
+    team_param = request.args.get("team", "padres")
+    team_id = resolve_team_id(team_param)
+    players = get_team_batting_stats(team_id)
     uid = request.args.get("uid", "")
-    favorites = {f.player_id for f in FavoritePlayer.query.filter_by(uid=uid).all()}
+    fav_team_key = normalize_team_key(team_param)
+    favorites = {f.player_id for f in FavoritePlayer.query.filter_by(uid=uid, favorite_team=fav_team_key).all()}
     for p in players:
         p["favorited"] = p["player_id"] in favorites
     return jsonify(players)
 
 @app.route("/api/pitchers")
 def pitchers_api():
-    return jsonify(get_padres_pitching_stats())
+    team_param = request.args.get("team", "padres")
+    team_id = resolve_team_id(team_param)
+    return jsonify(get_team_pitching_stats(team_id))
 
 @app.route("/api/standings")
 def standings_api():
+    team_param = request.args.get("team", "padres")
+    team_id = resolve_team_id(team_param)
     url = "https://statsapi.mlb.com/api/v1/standings"
     params = {
-        "leagueId": 104,
         "season": 2026,
         "standingsTypes": "regularSeason",
         "hydrate": "division,team,record(splitRecords)"
@@ -222,9 +319,10 @@ def standings_api():
     data = requests.get(url, params=params).json()
 
     for division in data.get("records", []):
-        if division.get("division", {}).get("id") == 203:
+        team_records = division.get("teamRecords", [])
+        if any(t["team"]["id"] == team_id for t in team_records):
             teams = []
-            for t in division["teamRecords"]:
+            for t in team_records:
                 splits = t.get("records", {}).get("splitRecords", [])
                 l10 = next((s for s in splits if s["type"] == "lastTen"), None)
                 teams.append({
@@ -242,13 +340,15 @@ def standings_api():
 @app.route("/api/nextgame")
 def next_game_api():
     from datetime import timedelta
+    team_param = request.args.get("team", "padres")
+    team_id = resolve_team_id(team_param)
     today = date.today().strftime("%Y-%m-%d")
     future_date = (date.today() + timedelta(days=14)).strftime("%Y-%m-%d")
     url = "https://statsapi.mlb.com/api/v1/schedule"
 
     for game_type, label in [("R", "Regular Season"), ("S", "Spring Training")]:
         params = {
-            "sportId": 1, "teamId": 135, "season": 2026,
+            "sportId": 1, "teamId": team_id, "season": 2026,
             "gameType": game_type,
             "startDate": today, "endDate": future_date,
             "hydrate": "linescore,venue"
@@ -311,12 +411,14 @@ def player_next_game():
 
 @app.route("/api/prevgame")
 def prev_game_api():
+    team_param = request.args.get("team", "padres")
+    team_id = resolve_team_id(team_param)
     today = date.today().strftime("%Y-%m-%d")
     url = "https://statsapi.mlb.com/api/v1/schedule"
     game_label = "Regular Season"
 
     params = {
-        "sportId": 1, "teamId": 135, "season": 2026,
+        "sportId": 1, "teamId": team_id, "season": 2026,
         "gameType": "R", "hydrate": "linescore",
         "startDate": "2026-03-01", "endDate": today
     }
@@ -373,12 +475,14 @@ def prev_game_api():
 
 @app.route("/api/live")
 def live_game_api():
+    team_param = request.args.get("team", "padres")
+    team_id = resolve_team_id(team_param)
     today = date.today().strftime("%Y-%m-%d")
     schedule_url = "https://statsapi.mlb.com/api/v1/schedule"
 
     # ONLY check today — never look back at old finished games
     import time
-    params = {"sportId": 1, "teamId": 135, "date": today, "hydrate": "linescore", "_": int(time.time())}
+    params = {"sportId": 1, "teamId": team_id, "date": today, "hydrate": "linescore", "_": int(time.time())}
     data = mlb_session.get(schedule_url, params=params).json()    
     dates = data.get("dates", [])
 
@@ -449,7 +553,9 @@ def get_favorites():
     uid = request.args.get("uid")
     if not uid:
         return jsonify([])
-    favorites = FavoritePlayer.query.filter_by(uid=uid).all()
+    team_param = request.args.get("team", "padres")
+    fav_team_key = normalize_team_key(team_param)
+    favorites = FavoritePlayer.query.filter_by(uid=uid, favorite_team=fav_team_key).all()
     result = []
     for f in favorites:
         stats_data = requests.get(
@@ -504,8 +610,9 @@ def toggle_favorite():
     if not uid:
         return jsonify({"error": "no uid"}), 400
     player_id = data["player_id"]
+    fav_team_key = normalize_team_key(data.get("favorite_team", "padres"))
     existing = FavoritePlayer.query.filter_by(
-        player_id=player_id, uid=uid
+        player_id=player_id, uid=uid, favorite_team=fav_team_key
     ).first()
     if existing:
         db.session.delete(existing)
@@ -517,7 +624,8 @@ def toggle_favorite():
         position=data["position"],
         team=data.get("team", ""),
         uid=uid,
-        user_id=uid
+        user_id=uid,
+        favorite_team=fav_team_key
     )
     db.session.add(new_fav)
     db.session.commit()
