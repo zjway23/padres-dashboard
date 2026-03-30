@@ -1,6 +1,6 @@
 import { SectionDivider, StandingsTable, StandingsRow } from "./StandingsComponents"
 
-function NLPlayoff({ teams }) {
+function NLPlayoff({ teams, isAL }) {
   if (!teams || teams.length === 0) return (
     <p className="loading">Loading...</p>
   )
@@ -8,10 +8,11 @@ function NLPlayoff({ teams }) {
   const divLeaders = teams.filter(t => t.category === "division")
   const wildCards = teams.filter(t => t.category === "wildcard")
   const eliminated = teams.filter(t => t.category === "eliminated")
+  const leagueLabel = isAL ? "AL" : "NL"
 
   return (
     <div className="playoff-card">
-      <h2 className="playoff-card__title">🏆 NL Playoff Picture</h2>
+      <h2 className="playoff-card__title">🏆 {leagueLabel} Playoff Picture</h2>
 
       <div className="standings-table-wrapper">
         <StandingsTable>

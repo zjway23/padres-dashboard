@@ -33,6 +33,7 @@ function App() {
   const [live, setLive] = useState(null)
   const [players, setPlayers] = useState([])
   const [standings, setStandings] = useState([])
+  const [standingsDivision, setStandingsDivision] = useState("")
   const [prevGame, setPrevGame] = useState(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("dashboard")
@@ -42,7 +43,7 @@ function App() {
   const [searching, setSearching] = useState(false)
   const [playerGames, setPlayerGames] = useState({})
   const [wildcard, setWildcard] = useState([])
-  const [nlPlayoff, setNlPlayoff] = useState([])
+  const [playoffData, setPlayoffData] = useState([])
   const [nextGame, setNextGame] = useState(null)
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
@@ -52,10 +53,16 @@ function App() {
   const [favoriteTeam, setFavoriteTeam] = useState(() => localStorage.getItem("favoriteTeam") || "padres")
   const [isFirstSetup] = useState(() => !localStorage.getItem("favoriteTeam"))
   const [settingsOpen, setSettingsOpen] = useState(() => !localStorage.getItem("favoriteTeam"))
+  const [timezone, setTimezone] = useState(() => localStorage.getItem("timezone") || "America/New_York")
 
   useEffect(() => {
     applyTeamTheme(favoriteTeam)
   }, [favoriteTeam])
+
+  const handleTimezoneChange = (tz) => {
+    localStorage.setItem("timezone", tz)
+    setTimezone(tz)
+  }
 
   const handleTeamChange = (teamId) => {
     localStorage.setItem("favoriteTeam", teamId)
@@ -96,10 +103,26 @@ function App() {
   const fetchNlPlayoff = () => {
     fetch(`${API}/api/nlplayoff`)
       .then(res => res.json())
-      .then(data => setNlPlayoff(data))
+      .then(data => setPlayoffData(data))
       .catch(err => console.error("NL Playoff fetch error:", err))
   }
 
+  const fetchAlPlayoff = () => {
+    fetch(`${API}/api/alplayoff`)
+      .then(res => res.json())
+      .then(data => setPlayoffData(data))
+      .catch(err => console.error("AL Playoff fetch error:", err))
+  }
+
+  const fetchPlayoff = (team) => {
+    const teamData = teamsData.find(t => t.id === team)
+    const isAL = teamData?.division?.startsWith("AL") || false
+    if (isAL) {
+      fetchAlPlayoff()
+    } else {
+      fetchNlPlayoff()
+    }
+  }
   const fetchWildcard = () => {
     fetch(`${API}/api/wildcard`)
       .then(res => res.json())
@@ -186,7 +209,15 @@ function App() {
   const fetchStandings = (team) => {
     fetch(`${API}/api/standings?team=${team}`)
       .then(res => res.json())
-      .then(data => setStandings(data))
+      .then(data => {
+        if (data && data.teams) {
+          setStandings(data.teams)
+          setStandingsDivision(data.division_name || "")
+        } else {
+          setStandings(Array.isArray(data) ? data : [])
+          setStandingsDivision("")
+        }
+      })
       .catch(err => console.error("Standings fetch error:", err))
   }
 
@@ -229,7 +260,7 @@ useEffect(() => {
   fetchPrevGame(favoriteTeam)
   fetchNextGame(favoriteTeam)
   fetchWildcard()
-  fetchNlPlayoff()
+  fetchPlayoff(favoriteTeam)
   const interval = setInterval(() => fetchLive(favoriteTeam), 15000)
   return () => clearInterval(interval)
 }, [favoriteTeam])
@@ -259,6 +290,8 @@ useEffect(() => {
           isFirstSetup={isFirstSetup}
           onSave={(teamId) => { handleTeamChange(teamId); setSettingsOpen(false) }}
           onClose={() => setSettingsOpen(false)}
+          timezone={timezone}
+          onTimezoneChange={handleTimezoneChange}
         />
       )}
       <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 24 }}>
@@ -449,8 +482,8 @@ useEffect(() => {
       {activeTab === "dashboard" && (
         <>
           <div className="top-row" style={{ minHeight: 280 }}>
-            <LiveGame live={live} prevGame={prevGame} nextGame={nextGame} favoriteTeam={favoriteTeam} />
-            <Standings teams={standings} wildcard={wildcard} nlPlayoff={nlPlayoff} favoriteTeam={favoriteTeam} />
+            <LiveGame live={live} prevGame={prevGame} nextGame={nextGame} favoriteTeam={favoriteTeam} timezone={timezone} />
+            <Standings teams={standings} divisionName={standingsDivision} wildcard={wildcard} nlPlayoff={playoffData} favoriteTeam={favoriteTeam} />
           </div>
           <RosterTable
             players={players}
@@ -484,7 +517,7 @@ useEffect(() => {
             <div style={{ width: 36, height: 36 }} />
             <div style={{ width: 60, height: 36 }} />
           </div>
-          <NLPlayoff teams={nlPlayoff} />
+          <NLPlayoff teams={playoffData} isAL={teamsData.find(t => t.id === favoriteTeam)?.division?.startsWith("AL") || false} />
         </div>
       )}
     </div>

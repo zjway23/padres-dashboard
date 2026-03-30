@@ -21,7 +21,7 @@ function Diamond({ first, second, third }) {
   )
 }
 
-function LiveGame({ live, prevGame, nextGame, favoriteTeam }) {
+function LiveGame({ live, prevGame, nextGame, favoriteTeam, timezone }) {
   const isLive = live && live.status === "In Progress"
   const favoriteTeamName = teamsData.find(t => t.id === favoriteTeam)?.name || ""
 
@@ -38,9 +38,11 @@ function LiveGame({ live, prevGame, nextGame, favoriteTeam }) {
     if (!isoString) return ""
     try {
       const dt = new Date(isoString)
+      const tz = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
       return dt.toLocaleTimeString("en-US", {
         hour: "numeric", minute: "2-digit",
-        timeZoneName: "short"
+        timeZoneName: "short",
+        timeZone: tz
       })
     } catch { return "" }
   }

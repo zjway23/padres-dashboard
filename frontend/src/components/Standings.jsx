@@ -1,12 +1,12 @@
 import { SectionDivider, StandingsTable, StandingsRow } from "./StandingsComponents"
 import teamsData from "../data/teams.json"
 
-function Standings({ teams, nlPlayoff, favoriteTeam }) {
+function Standings({ teams, divisionName, nlPlayoff, favoriteTeam }) {
   const favoriteTeamName = teamsData.find(t => t.id === favoriteTeam)?.name || ""
 
   return (
     <div className="standings-section">
-      <h2>Standings</h2>
+      <h2>{divisionName ? `${divisionName} Standings` : "Standings"}</h2>
       <div className="standings-table-wrapper">
         <table>
           <thead>
