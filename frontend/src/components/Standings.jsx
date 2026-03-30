@@ -1,12 +1,13 @@
 import { SectionDivider, StandingsTable, StandingsRow } from "./StandingsComponents"
 import teamsData from "../data/teams.json"
 
-function Standings({ teams, nlPlayoff, favoriteTeam }) {
+function Standings({ teams, divisionName, playoffData, isAL, favoriteTeam }) {
   const favoriteTeamName = teamsData.find(t => t.id === favoriteTeam)?.name || ""
+  const leagueLabel = isAL ? "AL" : "NL"
 
   return (
     <div className="standings-section">
-      <h2>Standings</h2>
+      <h2>{divisionName ? `${divisionName} Standings` : "Standings"}</h2>
       <div className="standings-table-wrapper">
         <table>
           <thead>
@@ -34,14 +35,14 @@ function Standings({ teams, nlPlayoff, favoriteTeam }) {
         </table>
       </div>
 
-      {nlPlayoff && nlPlayoff.length > 0 && (
+      {playoffData && playoffData.length > 0 && (
         <div className="playoff-section">
-          <h2 className="playoff-section__title">NL Playoff Picture</h2>
+          <h2 className="playoff-section__title">{leagueLabel} Playoff Picture</h2>
           <div className="standings-table-wrapper">
             {(() => {
-              const divLeaders = nlPlayoff.filter(t => t.category === "division")
-              const wildCards = nlPlayoff.filter(t => t.category === "wildcard")
-              const eliminated = nlPlayoff.filter(t => t.category === "eliminated")
+              const divLeaders = playoffData.filter(t => t.category === "division")
+              const wildCards = playoffData.filter(t => t.category === "wildcard")
+              const eliminated = playoffData.filter(t => t.category === "eliminated")
 
               return (
                 <>

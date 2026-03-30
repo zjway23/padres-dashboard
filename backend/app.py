@@ -330,6 +330,7 @@ def standings_api():
     for division in data.get("records", []):
         team_records = division.get("teamRecords", [])
         if any(t["team"]["id"] == team_id for t in team_records):
+            division_name = division.get("division", {}).get("name", "")
             teams = []
             for t in team_records:
                 splits = t.get("records", {}).get("splitRecords", [])
@@ -342,9 +343,9 @@ def standings_api():
                     "gb": t["gamesBack"],
                     "l10": f"{l10['wins']}-{l10['losses']}" if l10 else "N/A"
                 })
-            return jsonify(teams)
+            return jsonify({"division_name": division_name, "teams": teams})
 
-    return jsonify([])
+    return jsonify({"division_name": "", "teams": []})
 
 @app.route("/api/nextgame")
 def next_game_api():
@@ -876,5 +877,63 @@ def nl_playoff_api():
         t["category"] = "eliminated"
 
     return jsonify(div_leaders + wild_cards + eliminated)
+
+@app.route("/api/alplayoff")
+def al_playoff_api():
+    url = "https://statsapi.mlb.com/api/v1/standings"
+    params = {
+        "leagueId": 103,
+        "season": 2026,
+        "standingsTypes": "regularSeason",
+        "hydrate": "division,team"
+    }
+    data = requests.get(url, params=params).json()
+
+    divisions = {}
+    all_teams = []
+
+    for record in data.get("records", []):
+        div_name = record.get("division", {}).get("name", "")
+        for t in record["teamRecords"]:
+            team = {
+                "name": t["team"]["name"],
+                "abbreviation": t["team"].get("abbreviation", ""),
+                "division": div_name,
+                "league_rank": int(t.get("leagueRank", 99)),
+                "division_rank": int(t.get("divisionRank", 99)),
+                "wins": t["wins"],
+                "losses": t["losses"],
+                "pct": t["winningPercentage"],
+                "gb": t.get("gamesBack", "-"),
+                "wc_gb": t.get("wildCardGamesBack", "-"),
+                "games_remaining": t.get("gamesRemaining", "-"),
+            }
+            all_teams.append(team)
+            if int(t.get("divisionRank", 99)) == 1:
+                if div_name not in divisions or team["league_rank"] < divisions[div_name]["league_rank"]:
+                    divisions[div_name] = team
+
+    div_leaders = list(divisions.values())
+    div_leaders.sort(key=lambda x: x["league_rank"])
+    div_leader_names = {t["name"] for t in div_leaders}
+
+    remaining = [t for t in all_teams if t["name"] not in div_leader_names]
+    remaining.sort(key=lambda x: x["league_rank"])
+
+    wild_cards = remaining[:3]
+    eliminated = remaining[3:]
+
+    for i, t in enumerate(div_leaders):
+        t["seed"] = i + 1
+        t["category"] = "division"
+    for i, t in enumerate(wild_cards):
+        t["seed"] = i + 4
+        t["category"] = "wildcard"
+    for t in eliminated:
+        t["seed"] = None
+        t["category"] = "eliminated"
+
+    return jsonify(div_leaders + wild_cards + eliminated)
+
 if __name__ == "__main__":
     app.run(debug=True, port=5001)
