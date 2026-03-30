@@ -483,7 +483,7 @@ useEffect(() => {
         <>
           <div className="top-row" style={{ minHeight: 280 }}>
             <LiveGame live={live} prevGame={prevGame} nextGame={nextGame} favoriteTeam={favoriteTeam} timezone={timezone} />
-            <Standings teams={standings} divisionName={standingsDivision} wildcard={wildcard} nlPlayoff={playoffData} favoriteTeam={favoriteTeam} />
+            <Standings teams={standings} divisionName={standingsDivision} wildcard={wildcard} playoffData={playoffData} isAL={teamsData.find(t => t.id === favoriteTeam)?.division?.startsWith("AL") || false} favoriteTeam={favoriteTeam} />
           </div>
           <RosterTable
             players={players}
