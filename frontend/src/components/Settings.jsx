@@ -2,7 +2,7 @@ import teams from "../data/teams.json"
 
 const DIVISIONS = ["NL West", "NL Central", "NL East", "AL West", "AL Central", "AL East"]
 
-function Settings({ favoriteTeam, onSave, onClose }) {
+function Settings({ favoriteTeam, onSave, onClose, isFirstSetup }) {
   const currentTeam = teams.find(t => t.id === favoriteTeam) || teams[0]
 
   return (
@@ -32,7 +32,9 @@ function Settings({ favoriteTeam, onSave, onClose }) {
         border: `2px solid ${currentTeam.colors.accent}`
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-          <h2 style={{ color: "var(--color-accent)", margin: 0, fontSize: 20 }}>⚙️ Settings</h2>
+          <h2 style={{ color: "var(--color-accent)", margin: 0, fontSize: 20 }}>
+            {isFirstSetup ? "🏟️ Choose Your Team" : "⚙️ Settings"}
+          </h2>
           <button
             onClick={onClose}
             style={{
@@ -46,19 +48,21 @@ function Settings({ favoriteTeam, onSave, onClose }) {
           >✕</button>
         </div>
 
-        <p style={{ color: "#aaa", fontSize: 13, marginBottom: 20 }}>
-          Current team:{" "}
-          <span style={{ color: "var(--color-accent)", fontWeight: "bold" }}>
-            {currentTeam.name}
-          </span>
-        </p>
+        {!isFirstSetup && (
+          <p style={{ color: "#aaa", fontSize: 13, marginBottom: 20 }}>
+            Current team:{" "}
+            <span style={{ color: "var(--color-accent)", fontWeight: "bold" }}>
+              {currentTeam.name}
+            </span>
+          </p>
+        )}
 
         {DIVISIONS.map(division => (
           <div key={division} style={{ marginBottom: 16 }}>
             <p style={{ color: "#aaa", fontSize: 11, fontWeight: "bold", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>
               {division}
             </p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8 }}>
               {teams.filter(t => t.division === division).map(team => {
                 const isSelected = team.id === favoriteTeam
                 return (
@@ -85,24 +89,6 @@ function Settings({ favoriteTeam, onSave, onClose }) {
             </div>
           </div>
         ))}
-
-        <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid #0d1f2d", display: "flex", justifyContent: "flex-end" }}>
-          <button
-            onClick={onClose}
-            style={{
-              background: "var(--color-accent)",
-              color: "#0d1f2d",
-              border: "none",
-              borderRadius: 8,
-              padding: "8px 20px",
-              fontWeight: "bold",
-              cursor: "pointer",
-              fontSize: 14
-            }}
-          >
-            Done
-          </button>
-        </div>
       </div>
     </>
   )

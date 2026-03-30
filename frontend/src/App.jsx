@@ -19,9 +19,10 @@ const API = import.meta.env.VITE_API_URL || "http://localhost:5001"
 function applyTeamTheme(teamId) {
   const team = teamsData.find(t => t.id === teamId) || teamsData[0]
   const root = document.documentElement
-  root.style.setProperty("--color-accent", team.colors.accent)
+  const accentColor = teamId === "padres" ? team.colors.accent : "#AAAAAA"
+  root.style.setProperty("--color-accent", accentColor)
   root.style.setProperty("--color-dark", team.colors.primary)
-  const hex = team.colors.accent.replace("#", "")
+  const hex = accentColor.replace("#", "")
   const r = parseInt(hex.slice(0, 2), 16)
   const g = parseInt(hex.slice(2, 4), 16)
   const b = parseInt(hex.slice(4, 6), 16)
@@ -49,7 +50,8 @@ function App() {
   const [pitchers, setPitchers] = useState([])
   const [pitchersLoading, setPitchersLoading] = useState(true)
   const [favoriteTeam, setFavoriteTeam] = useState(() => localStorage.getItem("favoriteTeam") || "padres")
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [isFirstSetup] = useState(() => !localStorage.getItem("favoriteTeam"))
+  const [settingsOpen, setSettingsOpen] = useState(() => !localStorage.getItem("favoriteTeam"))
 
   useEffect(() => {
     applyTeamTheme(favoriteTeam)
@@ -247,13 +249,14 @@ useEffect(() => {
 
   if (!user) return <Login />
 
-  const favoriteTeamName = teamsData.find(t => t.id === favoriteTeam)?.name || "MLB"
+  const favoriteTeamName = teamsData.find(t => t.id === favoriteTeam)?.shortName || "MLB"
 
   return (
     <div className="app">
       {settingsOpen && (
         <Settings
           favoriteTeam={favoriteTeam}
+          isFirstSetup={isFirstSetup}
           onSave={(teamId) => { handleTeamChange(teamId); setSettingsOpen(false) }}
           onClose={() => setSettingsOpen(false)}
         />
@@ -446,7 +449,7 @@ useEffect(() => {
       {activeTab === "dashboard" && (
         <>
           <div className="top-row" style={{ minHeight: 280 }}>
-            <LiveGame live={live} prevGame={prevGame} nextGame={nextGame} />
+            <LiveGame live={live} prevGame={prevGame} nextGame={nextGame} favoriteTeam={favoriteTeam} />
             <Standings teams={standings} wildcard={wildcard} nlPlayoff={nlPlayoff} favoriteTeam={favoriteTeam} />
           </div>
           <RosterTable
@@ -466,11 +469,23 @@ useEffect(() => {
       )}
 
       {activeTab === "bullpen" && (
-        <p style={{ textAlign: "center", color: "#aaa" }}>Bullpen tracker coming soon!</p>
+        <div style={{ position: "relative" }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 8, visibility: "hidden" }}>
+            <div style={{ width: 36, height: 36 }} />
+            <div style={{ width: 60, height: 36 }} />
+          </div>
+          <p style={{ textAlign: "center", color: "#aaa" }}>Bullpen tracker coming soon!</p>
+        </div>
       )}
 
       {activeTab === "wildcard" && (
-        <NLPlayoff teams={nlPlayoff} />
+        <div style={{ position: "relative" }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 8, visibility: "hidden" }}>
+            <div style={{ width: 36, height: 36 }} />
+            <div style={{ width: 60, height: 36 }} />
+          </div>
+          <NLPlayoff teams={nlPlayoff} />
+        </div>
       )}
     </div>
   )
