@@ -319,29 +319,35 @@ def pitchers_api():
 def standings_api():
     team_param = request.args.get("team", "padres")
     team_id = resolve_team_id(team_param)
+    team_name = TEAM_FULL_NAMES.get(team_id, "")
+
+    # Determine league
+    nl_ids = {135, 119, 137, 115, 109, 112, 158, 138, 113, 134, 144, 121, 143, 146, 120}
+    league_id = 104 if team_id in nl_ids else 103
+
     url = "https://statsapi.mlb.com/api/v1/standings"
     params = {
+        "leagueId": league_id,
         "season": 2026,
         "standingsTypes": "regularSeason",
-        "hydrate": "division,team,record(splitRecords)"
+        "hydrate": "division,team"
     }
     data = requests.get(url, params=params).json()
 
-    for division in data.get("records", []):
-        team_records = division.get("teamRecords", [])
+    # Find the division this team belongs to
+    for record in data.get("records", []):
+        team_records = record.get("teamRecords", [])
         if any(t["team"]["id"] == team_id for t in team_records):
-            division_name = division.get("division", {}).get("name", "")
+            division_name = record.get("division", {}).get("name", "").replace("National League", "NL").replace("American League", "AL")
             teams = []
-            for t in team_records:
-                splits = t.get("records", {}).get("splitRecords", [])
-                l10 = next((s for s in splits if s["type"] == "lastTen"), None)
+            for t in sorted(team_records, key=lambda x: int(x.get("divisionRank", 99))):
                 teams.append({
                     "name": t["team"]["name"],
                     "wins": t["wins"],
                     "losses": t["losses"],
                     "pct": t["winningPercentage"],
-                    "gb": t["gamesBack"],
-                    "l10": f"{l10['wins']}-{l10['losses']}" if l10 else "N/A"
+                    "gb": t.get("gamesBack", "-"),
+                    "l10": "N/A"
                 })
             return jsonify({"division_name": division_name, "teams": teams})
 

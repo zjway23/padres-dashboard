@@ -8,7 +8,6 @@ import Standings from "./components/Standings"
 import FavoritesTab from "./components/FavoritesTab"
 import Settings from "./components/Settings"
 import "./App.css"
-import NLPlayoff from "./components/NLPlayoff"
 import teamsData from "./data/teams.json"
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:5001"
@@ -513,11 +512,14 @@ useEffect(() => {
 
       {activeTab === "wildcard" && (
         <div style={{ position: "relative" }}>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 8, visibility: "hidden" }}>
-            <div style={{ width: 36, height: 36 }} />
-            <div style={{ width: 60, height: 36 }} />
-          </div>
-          <NLPlayoff teams={playoffData} isAL={teamsData.find(t => t.id === favoriteTeam)?.division?.startsWith("AL") || false} />
+          <Standings
+            teams={[]}
+            divisionName=""
+            playoffData={playoffData}
+            isAL={teamsData.find(t => t.id === favoriteTeam)?.division?.startsWith("AL") || false}
+            favoriteTeam={favoriteTeam}
+            showDivision={false}
+          />
         </div>
       )}
     </div>
