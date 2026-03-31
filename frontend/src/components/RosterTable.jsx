@@ -1,11 +1,21 @@
-function RosterTable({ players, pitchers, pitchersLoading, battersLoading, onToggleFavorite }) {
-  const padresOnly = players.filter(p => p.team === "San Diego Padres")
-  const favorites = padresOnly.filter(p => p.favorited)
-  const rest = padresOnly.filter(p => !p.favorited)
-  const sortedBatters = [...favorites, ...rest]
+function RosterTable({ players, pitchers, pitchersLoading, battersLoading, onToggleFavorite, currentTeamName }) {
+  const teamPlayers = currentTeamName
+    ? players.filter(p => p.team === currentTeamName)
+    : players
+  const favoriteBatters = teamPlayers.filter(p => p.favorited)
+  const restBatters = teamPlayers.filter(p => !p.favorited)
+  const sortedBatters = [...favoriteBatters, ...restBatters]
 
-  const starters = (pitchers || []).filter(p => p.role === "SP")
-  const relievers = (pitchers || []).filter(p => p.role === "RP")
+  const allStarters = (pitchers || []).filter(p => p.role === "SP")
+  const allRelievers = (pitchers || []).filter(p => p.role === "RP")
+  const starters = [
+    ...allStarters.filter(p => p.favorited),
+    ...allStarters.filter(p => !p.favorited)
+  ]
+  const relievers = [
+    ...allRelievers.filter(p => p.favorited),
+    ...allRelievers.filter(p => !p.favorited)
+  ]
 
   const renderPitcherRow = (p, i) => (
     <tr key={i} style={{ background: p.favorited ? "rgba(255, 196, 37, 0.08)" : "transparent" }}>
