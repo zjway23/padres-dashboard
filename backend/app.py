@@ -318,37 +318,43 @@ def pitchers_api():
 def standings_api():
     team_param = request.args.get("team", "padres")
     team_id = resolve_team_id(team_param)
-    team_name = TEAM_FULL_NAMES.get(team_id, "")
 
-    # Determine league
     nl_ids = {135, 119, 137, 115, 109, 112, 158, 138, 113, 134, 144, 121, 143, 146, 120}
+
+    DIVISION_NAMES = {
+        200: "AL West", 201: "AL East", 202: "AL Central",
+        203: "NL West", 204: "NL East", 205: "NL Central"
+    }
+
     league_id = 104 if team_id in nl_ids else 103
 
     url = "https://statsapi.mlb.com/api/v1/standings"
-    params = {
-        "leagueId": league_id,
-        "season": 2026,
-        "standingsTypes": "regularSeason",
-        "hydrate": "division,team"
-    }
-    data = requests.get(url, params=params).json()
 
-    # Find the division this team belongs to
-    for record in data.get("records", []):
-        team_records = record.get("teamRecords", [])
-        if any(t["team"]["id"] == team_id for t in team_records):
-            division_name = record.get("division", {}).get("name", "").replace("National League", "NL").replace("American League", "AL")
-            teams = []
-            for t in sorted(team_records, key=lambda x: int(x.get("divisionRank", 99))):
-                teams.append({
-                    "name": t["team"]["name"],
-                    "wins": t["wins"],
-                    "losses": t["losses"],
-                    "pct": t["winningPercentage"],
-                    "gb": t.get("gamesBack", "-"),
-                    "l10": "N/A"
-                })
-            return jsonify({"division_name": division_name, "teams": teams})
+    for season in ["2026", "2025"]:
+        params = {
+            "leagueId": league_id,
+            "season": season,
+            "standingsTypes": "regularSeason",
+            "hydrate": "division,team"
+        }
+        data = requests.get(url, params=params).json()
+
+        for record in data.get("records", []):
+            team_records = record.get("teamRecords", [])
+            if any(t["team"]["id"] == team_id for t in team_records):
+                div_id = record.get("division", {}).get("id", 0)
+                division_name = DIVISION_NAMES.get(div_id, record.get("division", {}).get("name", ""))
+                teams = []
+                for t in sorted(team_records, key=lambda x: int(x.get("divisionRank", 99))):
+                    teams.append({
+                        "name": t["team"]["name"],
+                        "wins": t["wins"],
+                        "losses": t["losses"],
+                        "pct": t["winningPercentage"],
+                        "gb": t.get("gamesBack", "-"),
+                        "l10": "N/A"
+                    })
+                return jsonify({"division_name": division_name, "teams": teams})
 
     return jsonify({"division_name": "", "teams": []})
 

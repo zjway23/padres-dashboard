@@ -14,7 +14,7 @@ function Standings({ teams, divisionName, playoffData, isAL, favoriteTeam, showD
 
       {showDivision && (
         <>
-          <h2>{divisionName ? `${divisionName} Standings` : "Standings"}</h2>
+          <h2>{divisionName ? `${divisionName.replace("National League", "NL").replace("American League", "AL")} Standings` : "Standings"}</h2>
           <div className="standings-table-wrapper">
             <table>
               <thead>
