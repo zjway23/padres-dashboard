@@ -3,10 +3,10 @@ import teams from "../data/teams.json"
 const DIVISIONS = ["NL West", "NL Central", "NL East", "AL West", "AL Central", "AL East"]
 
 const TIMEZONES = [
-  { label: "Eastern (ET)", value: "America/New_York" },
-  { label: "Central (CT)", value: "America/Chicago" },
-  { label: "Mountain (MT)", value: "America/Denver" },
-  { label: "Pacific (PT)", value: "America/Los_Angeles" },
+  { label: "PT", value: "America/Los_Angeles" },
+  { label: "MT", value: "America/Denver" },
+  { label: "CT", value: "America/Chicago" },
+  { label: "ET", value: "America/New_York" },
 ]
 
 function Settings({ favoriteTeam, onSave, onClose, isFirstSetup, timezone, onTimezoneChange }) {
@@ -64,39 +64,6 @@ function Settings({ favoriteTeam, onSave, onClose, isFirstSetup, timezone, onTim
           </p>
         )}
 
-        {!isFirstSetup && (
-          <div style={{ marginBottom: 20 }}>
-            <p style={{ color: "#aaa", fontSize: 11, fontWeight: "bold", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>
-              Timezone
-            </p>
-            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8 }}>
-              {TIMEZONES.map(tz => {
-                const isSelected = timezone === tz.value
-                return (
-                  <button
-                    key={tz.value}
-                    onClick={() => onTimezoneChange && onTimezoneChange(tz.value)}
-                    style={{
-                      background: isSelected ? "var(--color-accent)" : "transparent",
-                      border: `1.5px solid ${isSelected ? "var(--color-accent)" : "#444"}`,
-                      color: isSelected ? "#0d1f2d" : "white",
-                      borderRadius: 8,
-                      padding: "6px 12px",
-                      fontSize: 13,
-                      fontWeight: isSelected ? "bold" : "normal",
-                      cursor: "pointer",
-                      transition: "all 0.15s ease",
-                      whiteSpace: "nowrap"
-                    }}
-                  >
-                    {tz.label}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
         {DIVISIONS.map(division => (
           <div key={division} style={{ marginBottom: 16 }}>
             <p style={{ color: "#aaa", fontSize: 11, fontWeight: "bold", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>
@@ -129,6 +96,47 @@ function Settings({ favoriteTeam, onSave, onClose, isFirstSetup, timezone, onTim
             </div>
           </div>
         ))}
+
+        {/* Divider */}
+        <div style={{
+          height: 1,
+          background: "#444",
+          margin: "20px 0"
+        }} />
+
+        {/* Timezone Selection */}
+        {!isFirstSetup && (
+          <div style={{ marginBottom: 20 }}>
+            <p style={{ color: "#aaa", fontSize: 11, fontWeight: "bold", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>
+              Timezone
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8 }}>
+              {TIMEZONES.map(tz => {
+                const isSelected = timezone === tz.value
+                return (
+                  <button
+                    key={tz.value}
+                    onClick={() => onTimezoneChange && onTimezoneChange(tz.value)}
+                    style={{
+                      background: isSelected ? "var(--color-accent)" : "transparent",
+                      border: `1.5px solid ${isSelected ? "var(--color-accent)" : "#444"}`,
+                      color: isSelected ? "#0d1f2d" : "white",
+                      borderRadius: 8,
+                      padding: "6px 12px",
+                      fontSize: 13,
+                      fontWeight: isSelected ? "bold" : "normal",
+                      cursor: "pointer",
+                      transition: "all 0.15s ease",
+                      whiteSpace: "nowrap"
+                    }}
+                  >
+                    {tz.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </>
   )
