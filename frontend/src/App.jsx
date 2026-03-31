@@ -66,7 +66,7 @@ function App() {
   const handleTeamChange = (teamId) => {
     localStorage.setItem("favoriteTeam", teamId)
     setFavoriteTeam(teamId)
-    setPlayers([])
+    setPlayers(prev => prev.filter(p => p.favorited))
     setStandings([])
     setLive(null)
     setPrevGame(null)
@@ -74,7 +74,6 @@ function App() {
     setPitchers([])
     setPitchersLoading(true)
     setLoading(true)
-    setFavoritesLoaded(false)
   }
 
   useEffect(() => {
@@ -161,7 +160,7 @@ function App() {
   }
 
   const fetchFavoritesWithRoster = (rosterData, team) => {
-    fetch(`${API}/api/favorites?uid=${user.uid}&team=${team}`)
+    fetch(`${API}/api/favorites?uid=${user.uid}`)
       .then(res => res.json())
       .then(favs => {
         const existingIds = new Set(rosterData.map(p => p.player_id))
@@ -247,8 +246,7 @@ function App() {
       name: player.name,
       position: player.position,
       team: player.team,
-      uid: user.uid,
-      favorite_team: favoriteTeam
+      uid: user.uid
     })
   }).catch(err => console.error("Favorite error:", err))
 }
@@ -328,7 +326,7 @@ useEffect(() => {
         </div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 16, position: "relative" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 16, position: "relative", paddingRight: activeTab === "favorites" ? 44 : 0, paddingLeft: activeTab === "favorites" ? 44 : 0 }}>
         <button
           className={`tab ${activeTab === "dashboard" ? "active" : ""}`}
           onClick={() => setActiveTab("dashboard")}

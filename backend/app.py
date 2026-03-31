@@ -303,8 +303,7 @@ def roster_api():
     team_id = resolve_team_id(team_param)
     players = get_team_batting_stats(team_id)
     uid = request.args.get("uid", "")
-    fav_team_key = normalize_team_key(team_param)
-    favorites = {f.player_id for f in FavoritePlayer.query.filter_by(uid=uid, favorite_team=fav_team_key).all()}
+    favorites = {f.player_id for f in FavoritePlayer.query.filter_by(uid=uid).all()}
     for p in players:
         p["favorited"] = p["player_id"] in favorites
     return jsonify(players)
@@ -569,9 +568,7 @@ def get_favorites():
     uid = request.args.get("uid")
     if not uid:
         return jsonify([])
-    team_param = request.args.get("team", "padres")
-    fav_team_key = normalize_team_key(team_param)
-    favorites = FavoritePlayer.query.filter_by(uid=uid, favorite_team=fav_team_key).all()
+    favorites = FavoritePlayer.query.filter_by(uid=uid).all()
     result = []
     for f in favorites:
         stats_data = requests.get(
@@ -626,9 +623,8 @@ def toggle_favorite():
     if not uid:
         return jsonify({"error": "no uid"}), 400
     player_id = data["player_id"]
-    fav_team_key = normalize_team_key(data.get("favorite_team", "padres"))
     existing = FavoritePlayer.query.filter_by(
-        player_id=player_id, uid=uid, favorite_team=fav_team_key
+        player_id=player_id, uid=uid
     ).first()
     if existing:
         db.session.delete(existing)
@@ -641,7 +637,7 @@ def toggle_favorite():
         team=data.get("team", ""),
         uid=uid,
         user_id=uid,
-        favorite_team=fav_team_key
+        favorite_team="global"
     )
     db.session.add(new_fav)
     db.session.commit()
