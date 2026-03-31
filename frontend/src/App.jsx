@@ -488,6 +488,7 @@ useEffect(() => {
             pitchersLoading={pitchersLoading}
             battersLoading={loading}
             onToggleFavorite={toggleFavorite}
+            currentTeamName={teamsData.find(t => t.id === favoriteTeam)?.name}
           />
         </>
       )}
