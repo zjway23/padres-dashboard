@@ -22,7 +22,7 @@ function Diamond({ first, second, third }) {
 }
 
 function LiveGame({ live, prevGame, nextGame, favoriteTeam, timezone }) {
-  const isLive = live && live.status === "In Progress"
+  const isLive = live && (live.status?.includes("In Progress") || live.status?.includes("Live"))
   const favoriteTeamName = teamsData.find(t => t.id === favoriteTeam)?.name || ""
 
   const getLastPlayColor = () => {
