@@ -1,6 +1,7 @@
 // frontend/src/components/StandingsComponents.jsx
 
 const NL_PREFIX = "National League "
+const AL_PREFIX = "American League "
 
 export function SectionDivider({ label, standalone = false }) {
   return (
@@ -29,8 +30,8 @@ export function StandingsRow({ team, showSeed = true, favoriteTeamName = "" }) {
       <td className={`playoff-td playoff-td--name${isFavorite ? " playoff-td--name-padres" : ""}`}>
         {team.name}
       </td>
-      <td className="playoff-td playoff-td--div">
-        {team.division?.replace(NL_PREFIX, "")}
+      <td className="playoff-td playoff-td--div playoff-td--center">
+        {team.division?.replace(NL_PREFIX, "").replace(AL_PREFIX, "")}
       </td>
       <td className="playoff-td playoff-td--center">{team.wins}</td>
       <td className="playoff-td playoff-td--center">{team.losses}</td>
@@ -52,7 +53,7 @@ export function StandingsTable({ children }) {
         <tr>
           <th className="playoff-th playoff-th--seed"></th>
           <th className="playoff-th">Team</th>
-          <th className="playoff-th">Div</th>
+          <th className="playoff-th playoff-th--center">Div</th>
           <th className="playoff-th playoff-th--center">W</th>
           <th className="playoff-th playoff-th--center">L</th>
           <th className="playoff-th playoff-th--center">GB</th>

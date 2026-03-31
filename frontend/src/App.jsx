@@ -349,7 +349,7 @@ useEffect(() => {
           className={`tab ${activeTab === "wildcard" ? "active" : ""}`}
           onClick={() => setActiveTab("wildcard")}
         >
-          🏆 Wild Card
+          🏆 Playoff Push
         </button>
 
         {activeTab === "favorites" && (

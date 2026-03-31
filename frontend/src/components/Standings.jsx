@@ -64,7 +64,9 @@ function Standings({ teams, divisionName, playoffData, isAL, favoriteTeam, showD
             <div className="eliminated-scroll">
               <table className="playoff-table">
                 <tbody>
-                  {eliminated.map((t, i) => <StandingsRow key={i} team={t} showSeed={false} favoriteTeamName={favoriteTeamName} />)}
+                  {eliminated.map((t, i) => (
+                    <StandingsRow key={i} team={t} showSeed={false} favoriteTeamName={favoriteTeamName} />
+                  ))}
                 </tbody>
               </table>
             </div>
