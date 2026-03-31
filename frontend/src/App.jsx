@@ -227,29 +227,38 @@ function App() {
   }
 
   const toggleFavorite = (player) => {
-  setPlayers(prev => {
-    const exists = prev.find(p => p.player_id === player.player_id)
-    if (exists) {
-      return prev.map(p =>
+    const isPitcher = player.role === "SP" || player.role === "RP"
+  
+    if (isPitcher) {
+      setPitchers(prev => prev.map(p =>
         p.player_id === player.player_id ? { ...p, favorited: !p.favorited } : p
-      )
+      ))
     } else {
-      return [...prev, { ...player, favorited: true }]
+      setPlayers(prev => {
+        const exists = prev.find(p => p.player_id === player.player_id)
+        if (exists) {
+          return prev.map(p =>
+            p.player_id === player.player_id ? { ...p, favorited: !p.favorited } : p
+          )
+        } else {
+          return [...prev, { ...player, favorited: true }]
+        }
+      })
     }
-  })
-
-  fetch(`${API}/api/favorites`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      player_id: player.player_id,
-      name: player.name,
-      position: player.position,
-      team: player.team,
-      uid: user.uid
-    })
-  }).catch(err => console.error("Favorite error:", err))
-}
+  
+    fetch(`${API}/api/favorites`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        player_id: player.player_id,
+        name: player.name,
+        position: player.position,
+        team: player.team,
+        uid: user.uid,
+        favorite_team: favoriteTeam
+      })
+    }).catch(err => console.error("Favorite error:", err))
+  }
 
 useEffect(() => {
   fetchLive(favoriteTeam)
