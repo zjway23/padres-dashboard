@@ -1,0 +1,1 @@
+const isLive = live && (live.status === "In Progress" || live.status === "Live" || live.status === "Game in Progress")
