@@ -261,7 +261,7 @@ useEffect(() => {
   fetchNextGame(favoriteTeam)
   fetchWildcard()
   fetchPlayoff(favoriteTeam)
-  const interval = setInterval(() => fetchLive(favoriteTeam), 15000)
+  const interval = setInterval(() => fetchLive(favoriteTeam), 5000)
   return () => clearInterval(interval)
 }, [favoriteTeam])
 
