@@ -122,6 +122,7 @@ class UserPreference(db.Model):
     favorite_team = db.Column(db.String(50), nullable=True, default="padres")
     default_tab = db.Column(db.String(50), nullable=True, default="dashboard")
     timezone = db.Column(db.String(100), nullable=True, default="America/New_York")
+    first_setup = db.Column(db.Boolean, nullable=True, default=True)
 
 with app.app_context():
     db.create_all()
@@ -664,10 +665,14 @@ def get_preferences():
     pref = UserPreference.query.filter_by(uid=uid).first()
     if not pref:
         return jsonify({})
+    first_setup_val = pref.first_setup
+    if first_setup_val is None:
+        first_setup_val = pref.favorite_team is None
     return jsonify({
         "favorite_team": pref.favorite_team,
         "default_tab": pref.default_tab,
-        "timezone": pref.timezone
+        "timezone": pref.timezone,
+        "first_setup": first_setup_val
     })
 
 @app.route("/api/preferences", methods=["POST"])
@@ -682,12 +687,27 @@ def save_preferences():
         db.session.add(pref)
     if "favorite_team" in data:
         pref.favorite_team = normalize_team_key(data["favorite_team"])
+        pref.first_setup = False
     if "default_tab" in data:
         pref.default_tab = data["default_tab"]
     if "timezone" in data:
         pref.timezone = data["timezone"]
     db.session.commit()
     return jsonify({"status": "saved"})
+
+@app.route("/api/favorites-list")
+def get_favorites_list():
+    uid = request.args.get("uid")
+    if not uid:
+        return jsonify([])
+    favorites = FavoritePlayer.query.filter_by(uid=uid).all()
+    return jsonify([{
+        "player_id": f.player_id,
+        "name": f.name,
+        "position": f.position,
+        "team": f.team,
+        "favorited": True
+    } for f in favorites])
 
 @app.route("/api/search")
 def search_players():

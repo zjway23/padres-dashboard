@@ -16,7 +16,7 @@ const TABS = [
   { label: "🏆 Playoff Push", value: "wildcard" },
 ]
 
-function Settings({ favoriteTeam, onSave, onClose, isFirstSetup, timezone, onTimezoneChange, defaultTab, onDefaultTabChange }) {
+function Settings({ favoriteTeam, onSave, onClose, isFirstSetup, timezone, onTimezoneChange, defaultTab, onDefaultTabChange, onLogout }) {
   const currentTeam = teams.find(t => t.id === favoriteTeam) || teams[0]
 
   return (
@@ -178,6 +178,32 @@ function Settings({ favoriteTeam, onSave, onClose, isFirstSetup, timezone, onTim
             </div>
           </div>
         )}
+
+        {/* Divider */}
+        <div style={{
+          height: 1,
+          background: "#444",
+          margin: "20px 0"
+        }} />
+
+        {/* Logout Button */}
+        <div style={{ display: "flex", justifyContent: "center" }}>
+          <button
+            onClick={onLogout}
+            style={{
+              background: "transparent",
+              border: "1.5px solid #aaa",
+              color: "#aaa",
+              borderRadius: 8,
+              padding: "8px 20px",
+              fontSize: 13,
+              cursor: "pointer",
+              transition: "all 0.15s ease"
+            }}
+          >
+            Log Out
+          </button>
+        </div>
       </div>
     </>
   )

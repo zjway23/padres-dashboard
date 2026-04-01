@@ -332,8 +332,47 @@ function PlayerCard({ p, onToggleFavorite, preloadedGames, API, timezone }) {
   )
 }
 
-function FavoritesTab({ players, onToggleFavorite, playerGames, API, timezone }) {
+function FavoritesTab({ players, onToggleFavorite, playerGames, API, timezone, loadingState = "ready", basicInfo = [] }) {
   const favorites = players.filter(p => p.favorited)
+
+  if (loadingState !== "ready") {
+    return (
+      <div>
+        <div style={{ maxWidth: 960, margin: "0 auto" }}>
+          <h2 style={{ color: "#ffc425", marginBottom: 16, fontSize: "1.3rem" }}>⭐ Favorite Players</h2>
+          {basicInfo.length === 0 ? (
+            <p style={{ textAlign: "center", color: "#aaa", padding: 20 }}>Loading favorites...</p>
+          ) : (
+            basicInfo.map((p, i) => (
+              <div key={i} style={{
+                background: "#1a3a4a",
+                borderRadius: 12,
+                padding: 20,
+                marginBottom: 16
+              }}>
+                <div style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 14
+                }}>
+                  <div>
+                    <span style={{ fontWeight: "bold", fontSize: 17 }}>{p.name}</span>
+                    <span style={{ marginLeft: 10, color: "#8ab4c9", fontSize: 13 }}>
+                      {p.team === "Unknown" ? "Prospect" : p.team}
+                    </span>
+                    <span className="pos-badge" style={{ marginLeft: 8 }}>{p.position}</span>
+                  </div>
+                  <span style={{ fontSize: 20, color: "#ffc425" }}>★</span>
+                </div>
+                <p style={{ color: "#aaa", fontSize: 13 }}>Stats loading for {p.name}...</p>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div>

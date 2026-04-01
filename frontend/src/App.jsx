@@ -35,7 +35,7 @@ function App() {
   const [standingsDivision, setStandingsDivision] = useState("")
   const [prevGame, setPrevGame] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState("dashboard")
+  const [activeTab, setActiveTab] = useState(() => localStorage.getItem("defaultTab") || "dashboard")
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState([])
@@ -47,11 +47,13 @@ function App() {
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [favoritesLoaded, setFavoritesLoaded] = useState(false)
+  const [favoritesLoadingState, setFavoritesLoadingState] = useState("idle")
+  const [favoritesBasicInfo, setFavoritesBasicInfo] = useState([])
   const [pitchers, setPitchers] = useState([])
   const [pitchersLoading, setPitchersLoading] = useState(true)
   const [favoriteTeam, setFavoriteTeam] = useState(() => localStorage.getItem("favoriteTeam") || "padres")
-  const [isFirstSetup] = useState(() => !localStorage.getItem("favoriteTeam"))
-  const [settingsOpen, setSettingsOpen] = useState(() => !localStorage.getItem("favoriteTeam"))
+  const [isFirstSetup, setIsFirstSetup] = useState(true)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [timezone, setTimezone] = useState(() => localStorage.getItem("timezone") || "America/New_York")
   const [defaultTab, setDefaultTab] = useState("dashboard")
 
@@ -74,6 +76,7 @@ function App() {
   const handleTeamChange = (teamId) => {
     localStorage.setItem("favoriteTeam", teamId)
     setFavoriteTeam(teamId)
+    setIsFirstSetup(false)
     setPlayers(prev => prev.filter(p => p.favorited))
     setStandings([])
     setLive(null)
@@ -93,6 +96,7 @@ function App() {
 
   const handleDefaultTabChange = (tab) => {
     setDefaultTab(tab)
+    localStorage.setItem("defaultTab", tab)
     if (user) {
       fetch(`${API}/api/preferences`, {
         method: "POST",
@@ -104,6 +108,15 @@ function App() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (!firebaseUser) {
+        setPlayers([])
+        setPitchers([])
+        setFavoritesLoaded(false)
+        setFavoritesLoadingState("idle")
+        setFavoritesBasicInfo([])
+        setPlayerGames({})
+        setIsFirstSetup(true)
+      }
       setUser(firebaseUser)
       setAuthLoading(false)
       if (firebaseUser) {
@@ -124,6 +137,12 @@ function App() {
             if (prefs.default_tab) {
               setDefaultTab(prefs.default_tab)
               setActiveTab(prefs.default_tab)
+              localStorage.setItem("defaultTab", prefs.default_tab)
+            }
+            const firstSetup = prefs.first_setup !== false
+            setIsFirstSetup(firstSetup)
+            if (firstSetup) {
+              setSettingsOpen(true)
             }
           })
           .catch(err => console.error("Preferences fetch error:", err))
@@ -137,6 +156,16 @@ function App() {
       .then(res => res.json())
       .then(data => { setPitchers(data); setPitchersLoading(false) })
       .catch(err => { console.error("Pitchers fetch error:", err); setPitchersLoading(false) })
+  }
+
+  const fetchFavoritesNames = (uid) => {
+    fetch(`${API}/api/favorites-list?uid=${uid}`)
+      .then(res => res.json())
+      .then(data => {
+        setFavoritesBasicInfo(data)
+        setFavoritesLoadingState("loading")
+      })
+      .catch(err => console.error("Favorites list fetch error:", err))
   }
 
   const fetchNextGame = (team) => {
@@ -207,8 +236,8 @@ function App() {
       .catch(err => console.error("Live fetch error:", err))
   }
 
-  const fetchFavoritesWithRoster = (rosterData, team) => {
-    fetch(`${API}/api/favorites?uid=${user.uid}`)
+  const fetchFavoritesWithRoster = (rosterData, team, uid) => {
+    fetch(`${API}/api/favorites?uid=${uid}&_=${Date.now()}`)
       .then(res => res.json())
       .then(favs => {
         const existingIds = new Set(rosterData.map(p => p.player_id))
@@ -221,6 +250,7 @@ function App() {
         preloadPlayerGames(favoritedPlayers)
         setPlayers([...updated, ...newPlayers])
         setFavoritesLoaded(true)
+        setFavoritesLoadingState("ready")
       })
       .catch(err => console.error("Favorites fetch error:", err))
   }
@@ -241,13 +271,13 @@ function App() {
     })
   }
 
-  const fetchRoster = (team) => {
-    fetch(`${API}/api/roster?team=${team}&uid=${user.uid}`)
+  const fetchRoster = (team, uid) => {
+    fetch(`${API}/api/roster?team=${team}&uid=${uid}`)
       .then(res => res.json())
       .then(data => {
         setPlayers(data)
         setLoading(false)
-        fetchFavoritesWithRoster(data, team)
+        fetchFavoritesWithRoster(data, team, uid)
       })
       .catch(err => console.error("Roster fetch error:", err))
   }
@@ -321,10 +351,18 @@ useEffect(() => {
 
 useEffect(() => {
   if (user) {
-    fetchRoster(favoriteTeam)
+    fetchRoster(favoriteTeam, user.uid)
     fetchPitchers(favoriteTeam)
   }
 }, [user, favoriteTeam])
+
+useEffect(() => {
+  if (user) {
+    setFavoritesLoadingState("idle")
+    setFavoritesBasicInfo([])
+    fetchFavoritesNames(user.uid)
+  }
+}, [user])
 
   if (authLoading) return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0a1929" }}>
@@ -348,6 +386,7 @@ useEffect(() => {
           onTimezoneChange={handleTimezoneChange}
           defaultTab={defaultTab}
           onDefaultTabChange={handleDefaultTabChange}
+          onLogout={() => { setSettingsOpen(false); signOut(auth) }}
         />
       )}
       <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 24 }}>
@@ -367,20 +406,6 @@ useEffect(() => {
             }}
           >
             ⚙️
-          </button>
-          <button
-            onClick={() => signOut(auth)}
-            style={{
-              background: "transparent",
-              border: "1.5px solid #aaa",
-              color: "#aaa",
-              borderRadius: 8,
-              padding: "4px 10px",
-              fontSize: 12,
-              cursor: "pointer"
-            }}
-          >
-            Log out
           </button>
         </div>
       </div>
@@ -553,9 +578,15 @@ useEffect(() => {
       )}
 
       {activeTab === "favorites" && (
-        favoritesLoaded 
-          ? <FavoritesTab players={players} onToggleFavorite={toggleFavorite} playerGames={playerGames} API={API} timezone={timezone} />
-          : <p style={{ textAlign: "center", color: "#aaa", marginTop: 40 }}>Loading favorites...</p>
+        <FavoritesTab
+          players={players}
+          onToggleFavorite={toggleFavorite}
+          playerGames={playerGames}
+          API={API}
+          timezone={timezone}
+          loadingState={favoritesLoadingState}
+          basicInfo={favoritesBasicInfo}
+        />
       )}
 
       {activeTab === "bullpen" && (
