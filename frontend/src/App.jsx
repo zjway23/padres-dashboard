@@ -504,7 +504,7 @@ useEffect(() => {
 
       {activeTab === "favorites" && (
         favoritesLoaded 
-          ? <FavoritesTab players={players} onToggleFavorite={toggleFavorite} playerGames={playerGames} API={API} />
+          ? <FavoritesTab players={players} onToggleFavorite={toggleFavorite} playerGames={playerGames} API={API} timezone={timezone} />
           : <p style={{ textAlign: "center", color: "#aaa", marginTop: 40 }}>Loading favorites...</p>
       )}
 
