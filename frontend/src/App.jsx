@@ -53,6 +53,7 @@ function App() {
   const [isFirstSetup] = useState(() => !localStorage.getItem("favoriteTeam"))
   const [settingsOpen, setSettingsOpen] = useState(() => !localStorage.getItem("favoriteTeam"))
   const [timezone, setTimezone] = useState(() => localStorage.getItem("timezone") || "America/New_York")
+  const [defaultTab, setDefaultTab] = useState("dashboard")
 
   useEffect(() => {
     applyTeamTheme(favoriteTeam)
@@ -61,6 +62,13 @@ function App() {
   const handleTimezoneChange = (tz) => {
     localStorage.setItem("timezone", tz)
     setTimezone(tz)
+    if (user) {
+      fetch(`${API}/api/preferences`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uid: user.uid, timezone: tz })
+      }).catch(err => console.error("Save timezone preference error:", err))
+    }
   }
 
   const handleTeamChange = (teamId) => {
@@ -74,12 +82,52 @@ function App() {
     setPitchers([])
     setPitchersLoading(true)
     setLoading(true)
+    if (user) {
+      fetch(`${API}/api/preferences`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uid: user.uid, favorite_team: teamId })
+      }).catch(err => console.error("Save team preference error:", err))
+    }
+  }
+
+  const handleDefaultTabChange = (tab) => {
+    setDefaultTab(tab)
+    if (user) {
+      fetch(`${API}/api/preferences`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uid: user.uid, default_tab: tab })
+      }).catch(err => console.error("Save default tab preference error:", err))
+    }
   }
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser)
       setAuthLoading(false)
+      if (firebaseUser) {
+        fetch(`${API}/api/preferences?uid=${firebaseUser.uid}`)
+          .then(res => {
+            if (!res.ok) return {}
+            return res.json()
+          })
+          .then(prefs => {
+            if (prefs.favorite_team) {
+              setFavoriteTeam(prefs.favorite_team)
+              localStorage.setItem("favoriteTeam", prefs.favorite_team)
+            }
+            if (prefs.timezone) {
+              setTimezone(prefs.timezone)
+              localStorage.setItem("timezone", prefs.timezone)
+            }
+            if (prefs.default_tab) {
+              setDefaultTab(prefs.default_tab)
+              setActiveTab(prefs.default_tab)
+            }
+          })
+          .catch(err => console.error("Preferences fetch error:", err))
+      }
     })
     return () => unsubscribe()
   }, [])
@@ -298,6 +346,8 @@ useEffect(() => {
           onClose={() => setSettingsOpen(false)}
           timezone={timezone}
           onTimezoneChange={handleTimezoneChange}
+          defaultTab={defaultTab}
+          onDefaultTabChange={handleDefaultTabChange}
         />
       )}
       <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 24 }}>

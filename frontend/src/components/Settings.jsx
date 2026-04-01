@@ -9,7 +9,14 @@ const TIMEZONES = [
   { label: "ET", value: "America/New_York" },
 ]
 
-function Settings({ favoriteTeam, onSave, onClose, isFirstSetup, timezone, onTimezoneChange }) {
+const TABS = [
+  { label: "Dashboard", value: "dashboard" },
+  { label: "⭐ Favorites", value: "favorites" },
+  { label: "Bullpen", value: "bullpen" },
+  { label: "🏆 Playoff Push", value: "wildcard" },
+]
+
+function Settings({ favoriteTeam, onSave, onClose, isFirstSetup, timezone, onTimezoneChange, defaultTab, onDefaultTabChange }) {
   const currentTeam = teams.find(t => t.id === favoriteTeam) || teams[0]
 
   return (
@@ -131,6 +138,40 @@ function Settings({ favoriteTeam, onSave, onClose, isFirstSetup, timezone, onTim
                     }}
                   >
                     {tz.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Default Tab Selection */}
+        {!isFirstSetup && (
+          <div style={{ marginBottom: 20 }}>
+            <p style={{ color: "#aaa", fontSize: 11, fontWeight: "bold", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>
+              Default Tab
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8 }}>
+              {TABS.map(tab => {
+                const isSelected = defaultTab === tab.value
+                return (
+                  <button
+                    key={tab.value}
+                    onClick={() => onDefaultTabChange && onDefaultTabChange(tab.value)}
+                    style={{
+                      background: isSelected ? "var(--color-accent)" : "transparent",
+                      border: `1.5px solid ${isSelected ? "var(--color-accent)" : "#444"}`,
+                      color: isSelected ? "#0d1f2d" : "white",
+                      borderRadius: 8,
+                      padding: "6px 12px",
+                      fontSize: 13,
+                      fontWeight: isSelected ? "bold" : "normal",
+                      cursor: "pointer",
+                      transition: "all 0.15s ease",
+                      whiteSpace: "nowrap"
+                    }}
+                  >
+                    {tab.label}
                   </button>
                 )
               })}
