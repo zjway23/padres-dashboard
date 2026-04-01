@@ -105,7 +105,7 @@ app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:/
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy(app)
 
-# Database model
+# Database models
 class FavoritePlayer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.String(100), nullable=False)
@@ -115,6 +115,13 @@ class FavoritePlayer(db.Model):
     team = db.Column(db.String(100))
     uid = db.Column(db.String(200))
     favorite_team = db.Column(db.String(50), nullable=True, default="padres")
+
+class UserPreference(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    uid = db.Column(db.String(200), unique=True, nullable=False)
+    favorite_team = db.Column(db.String(50), nullable=True, default="padres")
+    default_tab = db.Column(db.String(50), nullable=True, default="dashboard")
+    timezone = db.Column(db.String(100), nullable=True, default="America/New_York")
 
 with app.app_context():
     db.create_all()
@@ -648,6 +655,39 @@ def toggle_favorite():
     db.session.add(new_fav)
     db.session.commit()
     return jsonify({"status": "added"})
+
+@app.route("/api/preferences", methods=["GET"])
+def get_preferences():
+    uid = request.args.get("uid")
+    if not uid:
+        return jsonify({"error": "uid parameter is required"}), 400
+    pref = UserPreference.query.filter_by(uid=uid).first()
+    if not pref:
+        return jsonify({})
+    return jsonify({
+        "favorite_team": pref.favorite_team,
+        "default_tab": pref.default_tab,
+        "timezone": pref.timezone
+    })
+
+@app.route("/api/preferences", methods=["POST"])
+def save_preferences():
+    data = request.json
+    uid = data.get("uid")
+    if not uid:
+        return jsonify({"error": "no uid"}), 400
+    pref = UserPreference.query.filter_by(uid=uid).first()
+    if not pref:
+        pref = UserPreference(uid=uid)
+        db.session.add(pref)
+    if "favorite_team" in data:
+        pref.favorite_team = normalize_team_key(data["favorite_team"])
+    if "default_tab" in data:
+        pref.default_tab = data["default_tab"]
+    if "timezone" in data:
+        pref.timezone = data["timezone"]
+    db.session.commit()
+    return jsonify({"status": "saved"})
 
 @app.route("/api/search")
 def search_players():
