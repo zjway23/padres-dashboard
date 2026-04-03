@@ -263,7 +263,7 @@ function App() {
         // while the fresh favorites list loads from the API
         setPlayers(prev => {
           const favIds = new Set(prev.filter(p => p.favorited).map(p => p.player_id))
-          return newRoster.map(p => ({ ...p, favorited: favIds.has(p.player_id) }))
+          return newRoster.map(p => ({ ...p, favorited: favIds.has(p.player_id) || !!p.favorited }))
         })
         setLoading(false)
         fetchFavoritesWithRoster(newRoster, team)

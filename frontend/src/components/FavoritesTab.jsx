@@ -333,8 +333,6 @@ function PlayerCard({ p, onToggleFavorite, preloadedGames, API, timezone }) {
 }
 
 function FavoritesTab({ players, onToggleFavorite, playerGames, API, timezone, isLoading }) {
-  const favorites = players.filter(p => p.favorited)
-
   if (isLoading) {
     return (
       <div>
@@ -373,15 +371,18 @@ function FavoritesTab({ players, onToggleFavorite, playerGames, API, timezone, i
     <div>
       <div style={{ maxWidth: 960, margin: "0 auto" }}>
         <h2 style={{ color: "#ffc425", marginBottom: 16, fontSize: "1.3rem" }}>⭐ Favorite Players</h2>
-        {favorites.length === 0 ? (
-          <p style={{ textAlign: "center", color: "#aaa", padding: 20 }}>
-            No favorites yet — click ☆ next to any player in the Dashboard tab or use the 🔍 search to add players!
-          </p>
-        ) : (
-          favorites.map((p, i) => (
-            <PlayerCard key={i} p={p} onToggleFavorite={onToggleFavorite} preloadedGames={playerGames[p.player_id]} API={API} timezone={timezone} />
-          ))
-        )}
+        {(() => {
+          const favorites = players.filter(p => p.favorited)
+          return favorites.length === 0 ? (
+            <p style={{ textAlign: "center", color: "#aaa", padding: 20 }}>
+              No favorites yet — click ☆ next to any player in the Dashboard tab or use the 🔍 search to add players!
+            </p>
+          ) : (
+            favorites.map((p, i) => (
+              <PlayerCard key={i} p={p} onToggleFavorite={onToggleFavorite} preloadedGames={playerGames[p.player_id]} API={API} timezone={timezone} />
+            ))
+          )
+        })()}
       </div>
     </div>
   )
