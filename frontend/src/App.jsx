@@ -49,9 +49,15 @@ function App() {
   const [favoritesLoaded, setFavoritesLoaded] = useState(false)
   const [pitchers, setPitchers] = useState([])
   const [pitchersLoading, setPitchersLoading] = useState(true)
-  const [favoriteTeam, setFavoriteTeam] = useState(() => localStorage.getItem("favoriteTeam") || "padres")
-  const [isFirstSetup] = useState(() => !localStorage.getItem("favoriteTeam"))
-  const [settingsOpen, setSettingsOpen] = useState(() => !localStorage.getItem("favoriteTeam"))
+  const [favoriteTeam, setFavoriteTeam] = useState(() => {
+    const stored = localStorage.getItem("favoriteTeam")
+    if (!stored) {
+      localStorage.setItem("favoriteTeam", "padres")
+      return "padres"
+    }
+    return stored
+  })
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [timezone, setTimezone] = useState(() => localStorage.getItem("timezone") || "America/New_York")
   const [defaultTab, setDefaultTab] = useState("dashboard")
 
@@ -113,9 +119,15 @@ function App() {
             return res.json()
           })
           .then(prefs => {
-            if (prefs.favorite_team) {
-              setFavoriteTeam(prefs.favorite_team)
-              localStorage.setItem("favoriteTeam", prefs.favorite_team)
+            const team = prefs.favorite_team || "padres"
+            setFavoriteTeam(team)
+            localStorage.setItem("favoriteTeam", team)
+            if (!prefs.favorite_team) {
+              fetch(`${API}/api/preferences`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ uid: firebaseUser.uid, favorite_team: "padres" })
+              }).catch(err => console.error("Failed to save default Padres team preference to backend:", err))
             }
             if (prefs.timezone) {
               setTimezone(prefs.timezone)
@@ -341,7 +353,7 @@ useEffect(() => {
       {settingsOpen && (
         <Settings
           favoriteTeam={favoriteTeam}
-          isFirstSetup={isFirstSetup}
+          isFirstSetup={false}
           onSave={(teamId) => { handleTeamChange(teamId); setSettingsOpen(false) }}
           onClose={() => setSettingsOpen(false)}
           timezone={timezone}
