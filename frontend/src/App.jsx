@@ -127,7 +127,7 @@ function App() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ uid: firebaseUser.uid, favorite_team: "padres" })
-              }).catch(err => console.error("Save default team preference error:", err))
+              }).catch(err => console.error("Failed to save default Padres team preference to backend:", err))
             }
             if (prefs.timezone) {
               setTimezone(prefs.timezone)
