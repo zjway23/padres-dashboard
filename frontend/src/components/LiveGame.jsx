@@ -201,10 +201,19 @@ function LiveGame({ live, prevGame, nextGame, favoriteTeam, timezone }) {
   // ── MODE 2: NO GAME / FINAL ─────────────────────────────────────────────────
   return (
     <div className="game-card" style={{ display: "flex", flexDirection: "column" }}>
-      <NextGameCard />
-      <PrevGameCard />
-      {prevGame?.scoring_summary?.length > 0 && (
-        <ScoringPlays summary={prevGame.scoring_summary} />
+      {!nextGame && !prevGame ? (
+        <>
+          <div className="skeleton" style={{ height: 70, borderRadius: 8, marginBottom: 12 }} />
+          <div className="skeleton" style={{ height: 80, borderRadius: 8 }} />
+        </>
+      ) : (
+        <>
+          <NextGameCard />
+          <PrevGameCard />
+          {prevGame?.scoring_summary?.length > 0 && (
+            <ScoringPlays summary={prevGame.scoring_summary} />
+          )}
+        </>
       )}
     </div>
   )

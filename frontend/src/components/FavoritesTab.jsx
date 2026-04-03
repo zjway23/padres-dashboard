@@ -332,8 +332,42 @@ function PlayerCard({ p, onToggleFavorite, preloadedGames, API, timezone }) {
   )
 }
 
-function FavoritesTab({ players, onToggleFavorite, playerGames, API, timezone }) {
+function FavoritesTab({ players, onToggleFavorite, playerGames, API, timezone, isLoading }) {
   const favorites = players.filter(p => p.favorited)
+
+  if (isLoading) {
+    return (
+      <div>
+        <div style={{ maxWidth: 960, margin: "0 auto" }}>
+          <h2 style={{ color: "#ffc425", marginBottom: 16, fontSize: "1.3rem" }}>⭐ Favorite Players</h2>
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} style={{
+              background: "#1a3a4a",
+              borderRadius: 12,
+              padding: 20,
+              marginBottom: 16,
+              minHeight: 280
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <span className="skeleton" style={{ display: "inline-block", width: 120, height: 17 }} />
+                  <span className="skeleton" style={{ display: "inline-block", width: 60, height: 13 }} />
+                  <span className="skeleton" style={{ display: "inline-block", width: 30, height: 20, borderRadius: 4 }} />
+                </div>
+                <span className="skeleton" style={{ display: "inline-block", width: 20, height: 20, borderRadius: "50%" }} />
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
+                {Array.from({ length: 14 }).map((_, j) => (
+                  <span key={j} className="skeleton" style={{ display: "inline-block", width: 55, height: 46, borderRadius: 8 }} />
+                ))}
+              </div>
+              <span className="skeleton" style={{ display: "block", height: 80, borderRadius: 8 }} />
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div>
