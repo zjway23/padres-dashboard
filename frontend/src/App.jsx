@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { auth } from "./firebase"
 import { onAuthStateChanged, signOut } from "firebase/auth"
 import Login from "./components/Login"
@@ -47,6 +47,7 @@ function App() {
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [favoritesLoaded, setFavoritesLoaded] = useState(false)
+  const favoritesCache = useRef({})
   const [pitchers, setPitchers] = useState([])
   const [pitchersLoading, setPitchersLoading] = useState(true)
   const [favoriteTeam, setFavoriteTeam] = useState(() => {
@@ -222,6 +223,25 @@ function App() {
   }
 
   const fetchFavoritesWithRoster = (rosterData, team) => {
+    if (!user) return
+    const cacheKey = `${user.uid}_${team}`
+
+    if (favoritesCache.current[cacheKey]) {
+      const cached = favoritesCache.current[cacheKey]
+      // Merge fresh roster stats with cached favorited flags so stats stay
+      // up to date while avoiding another round-trip to the favorites API.
+      const existingIds = new Set(rosterData.map(p => p.player_id))
+      const updated = rosterData.map(p => ({
+        ...p,
+        favorited: cached.some(f => f.player_id === p.player_id && f.favorited)
+      }))
+      // Keep any favorited players from other teams that aren't in this roster.
+      const nonRosterFavs = cached.filter(p => !existingIds.has(p.player_id) && p.favorited)
+      setPlayers([...updated, ...nonRosterFavs])
+      setFavoritesLoaded(true)
+      return
+    }
+
     fetch(`${API}/api/favorites?uid=${user.uid}`)
       .then(res => res.json())
       .then(favs => {
@@ -231,9 +251,11 @@ function App() {
           ...p,
           favorited: favs.some(f => f.player_id === p.player_id)
         }))
-        const favoritedPlayers = [...updated, ...newPlayers].filter(p => p.favorited)
+        const mergedPlayers = [...updated, ...newPlayers]
+        favoritesCache.current[cacheKey] = mergedPlayers
+        const favoritedPlayers = mergedPlayers.filter(p => p.favorited)
         preloadPlayerGames(favoritedPlayers)
-        setPlayers([...updated, ...newPlayers])
+        setPlayers(mergedPlayers)
         setFavoritesLoaded(true)
       })
       .catch(err => console.error("Favorites fetch error:", err))
@@ -311,6 +333,11 @@ function App() {
           return [...prev, { ...player, favorited: true }]
         }
       })
+    }
+
+    // Invalidate cache so the next team-switch re-fetches updated favorites
+    if (user) {
+      delete favoritesCache.current[`${user.uid}_${favoriteTeam}`]
     }
   
     fetch(`${API}/api/favorites`, {
