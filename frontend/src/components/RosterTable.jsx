@@ -60,11 +60,16 @@ function RosterTable({ players, pitchers, pitchersLoading, battersLoading, onTog
           </thead>
           <tbody>
             {battersLoading ? (
-              <tr>
-                <td colSpan={9} style={{ textAlign: "center", color: "#aaa", padding: 20 }}>
-                  Loading batting stats...
-                </td>
-              </tr>
+              Array.from({ length: 9 }).map((_, i) => (
+                <tr key={i}>
+                  <td><span style={{ display: "inline-block", width: 16, height: 16, borderRadius: "50%", background: "#1f4a5e" }} /></td>
+                  <td><span className="skeleton" style={{ display: "inline-block", width: "80%", height: 14 }} /></td>
+                  <td><span className="skeleton" style={{ display: "inline-block", width: 28, height: 14 }} /></td>
+                  {[...Array(6)].map((_, j) => (
+                    <td key={j}><span className="skeleton" style={{ display: "inline-block", width: 32, height: 14 }} /></td>
+                  ))}
+                </tr>
+              ))
             ) : sortedBatters.map((p, i) => (
               <tr key={i} style={{ background: p.favorited ? "rgba(255, 196, 37, 0.08)" : "transparent" }}>
                 <td>
@@ -109,11 +114,16 @@ function RosterTable({ players, pitchers, pitchersLoading, battersLoading, onTog
           </thead>
           <tbody>
             {pitchersLoading ? (
-              <tr>
-                <td colSpan={11} style={{ textAlign: "center", color: "#aaa", padding: 20 }}>
-                  Loading pitching stats...
-                </td>
-              </tr>
+              Array.from({ length: 8 }).map((_, i) => (
+                <tr key={i}>
+                  <td><span style={{ display: "inline-block", width: 16, height: 16, borderRadius: "50%", background: "#1f4a5e" }} /></td>
+                  <td><span className="skeleton" style={{ display: "inline-block", width: "80%", height: 14 }} /></td>
+                  <td><span className="skeleton" style={{ display: "inline-block", width: 28, height: 14 }} /></td>
+                  {[...Array(8)].map((_, j) => (
+                    <td key={j}><span className="skeleton" style={{ display: "inline-block", width: 32, height: 14 }} /></td>
+                  ))}
+                </tr>
+              ))
             ) : (
               <>
                 {starters.map((p, i) => renderPitcherRow(p, i))}

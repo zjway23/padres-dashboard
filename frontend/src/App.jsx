@@ -35,7 +35,7 @@ function App() {
   const [standingsDivision, setStandingsDivision] = useState("")
   const [prevGame, setPrevGame] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState("dashboard")
+  const [activeTab, setActiveTab] = useState(() => localStorage.getItem("defaultTab") || "dashboard")
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState([])
@@ -59,7 +59,7 @@ function App() {
   })
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [timezone, setTimezone] = useState(() => localStorage.getItem("timezone") || "America/New_York")
-  const [defaultTab, setDefaultTab] = useState("dashboard")
+  const [defaultTab, setDefaultTab] = useState(() => localStorage.getItem("defaultTab") || "dashboard")
 
   useEffect(() => {
     applyTeamTheme(favoriteTeam)
@@ -99,6 +99,7 @@ function App() {
 
   const handleDefaultTabChange = (tab) => {
     setDefaultTab(tab)
+    localStorage.setItem("defaultTab", tab)
     if (user) {
       fetch(`${API}/api/preferences`, {
         method: "POST",
@@ -136,6 +137,7 @@ function App() {
             if (prefs.default_tab) {
               setDefaultTab(prefs.default_tab)
               setActiveTab(prefs.default_tab)
+              localStorage.setItem("defaultTab", prefs.default_tab)
             }
           })
           .catch(err => console.error("Preferences fetch error:", err))
@@ -256,10 +258,15 @@ function App() {
   const fetchRoster = (team) => {
     fetch(`${API}/api/roster?team=${team}&uid=${user.uid}`)
       .then(res => res.json())
-      .then(data => {
-        setPlayers(data)
+      .then(newRoster => {
+        // Preserve existing favorited flags so the Favorites tab stays populated
+        // while the fresh favorites list loads from the API
+        setPlayers(prev => {
+          const favIds = new Set(prev.filter(p => p.favorited).map(p => p.player_id))
+          return newRoster.map(p => ({ ...p, favorited: favIds.has(p.player_id) || !!p.favorited }))
+        })
         setLoading(false)
-        fetchFavoritesWithRoster(data, team)
+        fetchFavoritesWithRoster(newRoster, team)
       })
       .catch(err => console.error("Roster fetch error:", err))
   }
@@ -565,9 +572,7 @@ useEffect(() => {
       )}
 
       {activeTab === "favorites" && (
-        favoritesLoaded 
-          ? <FavoritesTab players={players} onToggleFavorite={toggleFavorite} playerGames={playerGames} API={API} timezone={timezone} />
-          : <p style={{ textAlign: "center", color: "#aaa", marginTop: 40 }}>Loading favorites...</p>
+        <FavoritesTab players={players} onToggleFavorite={toggleFavorite} playerGames={playerGames} API={API} timezone={timezone} isLoading={!favoritesLoaded} />
       )}
 
       {activeTab === "bullpen" && (

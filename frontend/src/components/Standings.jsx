@@ -129,7 +129,16 @@ function Standings({ teams, divisionName, playoffData, isAL, favoriteTeam, showD
                 </tr>
               </thead>
               <tbody>
-                {teams.map((t, i) => (
+                {teams.length === 0 ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={i}>
+                      <td><span className="skeleton" style={{ display: "inline-block", width: "90%", height: 14 }} /></td>
+                      {[...Array(5)].map((_, j) => (
+                        <td key={j}><span className="skeleton" style={{ display: "inline-block", width: 28, height: 14 }} /></td>
+                      ))}
+                    </tr>
+                  ))
+                ) : teams.map((t, i) => (
                   <tr key={i} className={t.name === favoriteTeamName ? "padres-row" : ""}>
                     <td>{t.name}</td>
                     <td>{t.wins}</td>
