@@ -154,10 +154,25 @@ function Standings({ teams, divisionName, playoffData, isAL, favoriteTeam, showD
         </>
       )}
 
-      {playoffData && playoffData.length > 0 && (
-        <div className="playoff-section">
-          <h2 className="playoff-section__title">{leagueLabel} Playoff Picture</h2>
-          <div className="standings-table-wrapper">
+      <div className="playoff-section">
+        <h2 className="playoff-section__title">{leagueLabel} Playoff Picture</h2>
+        <div className="standings-table-wrapper">
+          {playoffData.length === 0 ? (
+            <table className="playoff-table">
+              <tbody>
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <tr key={i}>
+                    <td className="playoff-td"><span className="skeleton" style={{ display: "inline-block", width: 18, height: 14 }} /></td>
+                    <td className="playoff-td"><span className="skeleton" style={{ display: "inline-block", width: "55%", height: 14 }} /></td>
+                    <td className="playoff-td"><span className="skeleton" style={{ display: "inline-block", width: 36, height: 14 }} /></td>
+                    {[...Array(4)].map((_, j) => (
+                      <td key={j} className="playoff-td"><span className="skeleton" style={{ display: "inline-block", width: 28, height: 14 }} /></td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
             <StandingsTable>
               <tr className="divider-row">
                 <td colSpan={8}><SectionDivider label="DIVISION LEADERS" /></td>
@@ -182,9 +197,9 @@ function Standings({ teams, divisionName, playoffData, isAL, favoriteTeam, showD
                 </td>
               </tr>
             </StandingsTable>
-          </div>
+          )}
         </div>
-      )}
+      </div>
 
     </div>
   )

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react"
 
 const teamIdCache = {}
+const nextGameCache = {} // module-level: persists across tab switches
 
 async function fetchTeamId(playerId) {
   if (teamIdCache[playerId]) return teamIdCache[playerId]
@@ -231,11 +232,24 @@ function PlayerNextGame({ playerId, API, timezone = "America/Los_Angeles" }) {
     async function load() {
       const teamId = await fetchTeamId(playerId)
       if (!teamId || cancelled) { setLoading(false); return }
+
+      // Return cached result immediately without hitting the network
+      if (teamId in nextGameCache) {
+        if (!cancelled) {
+          setNextGame(nextGameCache[teamId])
+          setLoading(false)
+        }
+        return
+      }
+
       try {
         const res = await fetch(`${API}/api/player-next-game?team_id=${teamId}`)
         const data = await res.json()
+        nextGameCache[teamId] = data
         if (!cancelled) setNextGame(data)
-      } catch {}
+      } catch {
+        // Don't cache on error so the next mount can retry
+      }
       if (!cancelled) setLoading(false)
     }
     load()
