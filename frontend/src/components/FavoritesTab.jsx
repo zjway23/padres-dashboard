@@ -2,6 +2,7 @@ import { useState, useEffect } from "react"
 
 const teamIdCache = {}
 const nextGameCache = {} // module-level: persists across tab switches
+const playsCache = {}   // module-level: { [playerId_gamePk]: plays[] } — survives tab switches
 
 async function fetchTeamId(playerId) {
   if (teamIdCache[playerId]) return teamIdCache[playerId]
@@ -43,6 +44,47 @@ function getSBDisplay(p) {
   return { pct, ratio }
 }
 
+function getKPct(p) {
+  const raw = p.k
+  const k = typeof raw === "number" ? raw : (raw !== undefined && raw !== "N/A" ? Number(raw) : null)
+  if (k === null || isNaN(k)) return "N/A"
+
+  // Prefer an explicit PA field; fall back to computing from components
+  let pa = null
+  if (typeof p.pa === "number") {
+    pa = p.pa
+  } else if (typeof p.ab === "number") {
+    pa = p.ab
+      + (typeof p.bb === "number" ? p.bb : 0)
+      + (typeof p.hbp === "number" ? p.hbp : 0)
+      + (typeof p.sf === "number" ? p.sf : 0)
+  }
+
+  if (!pa || pa === 0) return "N/A"
+  return `${Math.round((k / pa) * 100)}%`
+}
+
+function SmallDiamond({ first, second, third }) {
+  const base = (active) => ({
+    width: 10, height: 10,
+    background: active ? "#ffc425" : "transparent",
+    border: "1.5px solid #ffc425",
+    transform: "rotate(45deg)",
+    display: "inline-block",
+    margin: 2
+  })
+  return (
+    <div style={{ textAlign: "center", lineHeight: 1 }}>
+      <div style={{ marginBottom: -5 }}><span style={base(second)}></span></div>
+      <div>
+        <span style={base(third)}></span>
+        <span style={{ display: "inline-block", width: 10, margin: 2 }}></span>
+        <span style={base(first)}></span>
+      </div>
+    </div>
+  )
+}
+
 function buildStatLine(s) {
   if (!s) return "No data"
   const n = (num, label) => num > 1 ? `${num}${label}` : label
@@ -73,45 +115,86 @@ function PlayRow({ play }) {
   const location = play.location ? LOCATION_MAP[play.location] || play.location : null
   const subtext = [trajectory, location].filter(Boolean).join(" · ")
 
+  const TOP_VALUES = ["top"]
+  const BOT_VALUES = ["bot", "bottom"]
+  const rawHalf = play.half || play.inning_half || ""
+  const halfSymbol = TOP_VALUES.includes(rawHalf) ? "▲" : BOT_VALUES.includes(rawHalf) ? "▼" : null
+  const inningNum = play.inning
+  const inningStr = halfSymbol && inningNum ? `${halfSymbol}${inningNum}` : (inningNum ? `Inn ${inningNum}` : null)
+
+  const balls = play.balls
+  const strikes = play.strikes
+  const countStr = (balls !== undefined && strikes !== undefined) ? `${balls}-${strikes}` : null
+
+  const outs = play.outs
+  const outsStr = outs !== undefined ? `${outs} out${outs !== 1 ? "s" : ""}` : null
+
+  const first = !!(play.on_first || play.runners?.first)
+  const second = !!(play.on_second || play.runners?.second)
+  const third = !!(play.on_third || play.runners?.third)
+
+  const hasContext = inningStr || countStr || outsStr || first || second || third
+
+  // For strikeouts the event name already captures the result; the full
+  // description is redundant (and often lengthy), so skip it there.
+  const description = play.description && play.event !== "Strikeout" ? play.description : null
+
   return (
     <div style={{
       display: "flex",
       alignItems: "flex-start",
-      gap: 16,
+      gap: 10,
       padding: "10px 0",
       borderBottom: "1px solid #1a3a4a"
     }}>
-      <div style={{ minWidth: 130 }}>
-        <div style={{ color: "#ffc425", fontWeight: "bold", fontSize: 13 }}>
-          {play.event}
+      {hasContext && (
+        <div style={{ minWidth: 52, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, paddingTop: 2 }}>
+          {inningStr && <div style={{ color: "#ffc425", fontSize: 11, fontWeight: "bold" }}>{inningStr}</div>}
+          <SmallDiamond first={first} second={second} third={third} />
+          {countStr && <div style={{ color: "#aaa", fontSize: 10 }}>{countStr}</div>}
+          {outsStr && <div style={{ color: "#aaa", fontSize: 10 }}>{outsStr}</div>}
         </div>
-        {play.event === "Strikeout" && (
-          <div style={{ color: "#aaa", fontSize: 11, marginTop: 2 }}>
-            {play.description?.toLowerCase().includes("swinging") ? "Swinging" : "Looking"}
+      )}
+      <div style={{ flex: 1, display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ minWidth: 120 }}>
+          <div style={{ color: "#ffc425", fontWeight: "bold", fontSize: 13 }}>
+            {play.event}
           </div>
-        )}
-        {subtext && (
-          <div style={{ color: "#aaa", fontSize: 11, marginTop: 2, textTransform: "capitalize" }}>
-            {subtext}
+          {play.event === "Strikeout" && (
+            <div style={{ color: "#aaa", fontSize: 11, marginTop: 2 }}>
+              {play.description?.toLowerCase().includes("swinging") ? "Swinging" : "Looking"}
+            </div>
+          )}
+          {subtext && (
+            <div style={{ color: "#aaa", fontSize: 11, marginTop: 2, textTransform: "capitalize" }}>
+              {subtext}
+            </div>
+          )}
+        </div>
+        {hasHitData && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <div style={{ display: "flex", gap: 6 }}>
+              <div style={{ background: "#1a3a4a", borderRadius: 6, padding: "4px 8px", textAlign: "center", minWidth: 52 }}>
+                <div style={{ color: "#ffc425", fontSize: 10 }}>EV</div>
+                <div style={{ fontSize: 13, fontWeight: "bold" }}>{play.ev ? `${play.ev}` : "N/A"}</div>
+              </div>
+              <div style={{ background: "#1a3a4a", borderRadius: 6, padding: "4px 8px", textAlign: "center", minWidth: 52 }}>
+                <div style={{ color: "#ffc425", fontSize: 10 }}>LA</div>
+                <div style={{ fontSize: 13, fontWeight: "bold" }}>{play.la !== null ? `${play.la}°` : "N/A"}</div>
+              </div>
+              <div style={{ background: "#1a3a4a", borderRadius: 6, padding: "4px 8px", textAlign: "center", minWidth: 52 }}>
+                <div style={{ color: "#ffc425", fontSize: 10 }}>DIST</div>
+                <div style={{ fontSize: 13, fontWeight: "bold" }}>{play.dist ? `${play.dist}ft` : "N/A"}</div>
+              </div>
+            </div>
+            {description && (
+              <div style={{ color: "#aaa", fontSize: 11, fontStyle: "italic", maxWidth: 280 }}>
+                {description}
+              </div>
+            )}
           </div>
         )}
       </div>
-      {hasHitData && (
-        <div style={{ display: "flex", gap: 6 }}>
-          <div style={{ background: "#1a3a4a", borderRadius: 6, padding: "4px 8px", textAlign: "center", minWidth: 52 }}>
-            <div style={{ color: "#ffc425", fontSize: 10 }}>EV</div>
-            <div style={{ fontSize: 13, fontWeight: "bold" }}>{play.ev ? `${play.ev}` : "N/A"}</div>
-          </div>
-          <div style={{ background: "#1a3a4a", borderRadius: 6, padding: "4px 8px", textAlign: "center", minWidth: 52 }}>
-            <div style={{ color: "#ffc425", fontSize: 10 }}>LA</div>
-            <div style={{ fontSize: 13, fontWeight: "bold" }}>{play.la !== null ? `${play.la}°` : "N/A"}</div>
-          </div>
-          <div style={{ background: "#1a3a4a", borderRadius: 6, padding: "4px 8px", textAlign: "center", minWidth: 52 }}>
-            <div style={{ color: "#ffc425", fontSize: 10 }}>DIST</div>
-            <div style={{ fontSize: 13, fontWeight: "bold" }}>{play.dist ? `${play.dist}ft` : "N/A"}</div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
@@ -148,11 +231,18 @@ function PlayerLastGame({ playerId, preloadedGames }) {
 
   const fetchPlays = (pid, gamePk) => {
     if (!gamePk) return
+    const cacheKey = `${pid}_${gamePk}`
+    if (playsCache[cacheKey]) {
+      setPlays(playsCache[cacheKey])
+      setLoadingPlays(false)
+      return
+    }
     setLoadingPlays(true)
     setPlays([])
     fetch(`https://padres-dashboard.onrender.com/api/playergame/${pid}/${gamePk}`)
       .then(res => res.json())
       .then(data => {
+        playsCache[cacheKey] = data
         setPlays(data)
         setLoadingPlays(false)
       })
@@ -330,6 +420,7 @@ function PlayerCard({ p, onToggleFavorite, preloadedGames, API, timezone }) {
         <StatBox label="RBI" value={p.rbi} />
         <StatBox label="BB" value={p.bb || "0"} />
         <StatBox label="K" value={p.k || "0"} />
+        <StatBox label="K%" value={getKPct(p)} />
         <StatBox label="SB%" value={sb.pct} />
         <StatBox label="SB/ATT" value={sb.ratio} />
         <StatBox label="SLG" value={p.slg || "N/A"} />

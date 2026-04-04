@@ -81,6 +81,8 @@ function App() {
   const handleTeamChange = (teamId) => {
     localStorage.setItem("favoriteTeam", teamId)
     setFavoriteTeam(teamId)
+    // Keep only favorited players visible (including cross-team favorites)
+    // fetchRoster will merge in the new team's roster without losing them
     setPlayers(prev => prev.filter(p => p.favorited))
     setStandings([])
     setLive(null)
@@ -282,10 +284,16 @@ function App() {
       .then(res => res.json())
       .then(newRoster => {
         // Preserve existing favorited flags so the Favorites tab stays populated
-        // while the fresh favorites list loads from the API
+        // while the fresh favorites list loads from the API.
+        // Also keep cross-team favorites that aren't in the new roster so they
+        // remain visible on the Favorites tab until fetchFavoritesWithRoster merges them.
         setPlayers(prev => {
-          const favIds = new Set(prev.filter(p => p.favorited).map(p => p.player_id))
-          return newRoster.map(p => ({ ...p, favorited: favIds.has(p.player_id) || !!p.favorited }))
+          const prevFavs = prev.filter(p => p.favorited)
+          const favIds = new Set(prevFavs.map(p => p.player_id))
+          const newRosterIds = new Set(newRoster.map(p => p.player_id))
+          const updated = newRoster.map(p => ({ ...p, favorited: favIds.has(p.player_id) || !!p.favorited }))
+          const nonRosterFavs = prevFavs.filter(p => !newRosterIds.has(p.player_id))
+          return [...updated, ...nonRosterFavs]
         })
         setLoading(false)
         fetchFavoritesWithRoster(newRoster, team)
