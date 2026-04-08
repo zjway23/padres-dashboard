@@ -5,6 +5,43 @@ import teamsData from "../data/teams.json"
 const NL_PREFIX = "National League "
 const AL_PREFIX = "American League "
 
+/**
+ * Format a games-back value as a display string.
+ * gb < 0  → ahead of 6th seed → "+1.5"
+ * gb = 0  → tied              → "-"
+ * gb > 0  → behind 6th seed   → "1.5"
+ */
+function formatGbValue(gb) {
+  if (gb === 0) return "-"
+  const abs = Math.abs(gb)
+  const str = abs % 1 === 0 ? `${abs}` : abs.toFixed(1)
+  return gb < 0 ? `+${str}` : str
+}
+
+/**
+ * Compute a "playoff GB" for each team, measured relative to the 6th seed
+ * (3rd wild card). Rules:
+ *  - Division leaders (seeds 1–3): "-"
+ *  - 6th seed: "-"
+ *  - 4th/5th seeds: "-" if tied, "+X.X" if ahead
+ *  - Eliminated teams: games behind the 6th seed
+ */
+function enrichWithPlayoffGb(playoffData) {
+  const sixthSeed = playoffData.find(t => t.seed === 6)
+  if (!sixthSeed) return playoffData
+
+  const s6w = sixthSeed.wins
+  const s6l = sixthSeed.losses
+
+  return playoffData.map(t => {
+    if (t.category === "division" || t.seed === 6) {
+      return { ...t, playoffGb: "-" }
+    }
+    const gb = ((s6w - t.wins) + (t.losses - s6l)) / 2
+    return { ...t, playoffGb: formatGbValue(gb) }
+  })
+}
+
 export function SectionDivider({ label, standalone = false }) {
   return (
     <div className={`section-divider${standalone ? " section-divider--standalone" : ""}`}>
@@ -38,7 +75,7 @@ export function StandingsRow({ team, showSeed = true, favoriteTeamName = "" }) {
       <td className="playoff-td playoff-td--center">{team.wins}</td>
       <td className="playoff-td playoff-td--center">{team.losses}</td>
       <td className="playoff-td playoff-td--center playoff-td--muted">
-        {team.gb === "-" || team.gb === "0" ? "-" : team.gb}
+        {team.playoffGb != null ? team.playoffGb : (team.gb === "-" || team.gb === "0" ? "-" : team.gb)}
       </td>
       <td className="playoff-td playoff-td--center playoff-td--muted">{team.pct}</td>
       <td className="playoff-td playoff-td--center playoff-td--muted">
@@ -62,7 +99,7 @@ export function EliminatedRow({ team, favoriteTeamName = "" }) {
       <div className="elim-cell elim-cell--stat">{team.wins}</div>
       <div className="elim-cell elim-cell--stat">{team.losses}</div>
       <div className="elim-cell elim-cell--stat elim-cell--muted">
-        {team.gb === "-" || team.gb === "0" ? "-" : team.gb}
+        {team.playoffGb != null ? team.playoffGb : (team.gb === "-" || team.gb === "0" ? "-" : team.gb)}
       </div>
       <div className="elim-cell elim-cell--stat elim-cell--muted">{team.pct}</div>
       <div className="elim-cell elim-cell--stat elim-cell--muted">
@@ -106,9 +143,11 @@ function Standings({ teams, divisionName, playoffData, isAL, favoriteTeam, showD
   const favoriteTeamName = teamsData.find(t => t.id === favoriteTeam)?.name || ""
   const leagueLabel = isAL ? "AL" : "NL"
 
-  const divLeaders = playoffData?.filter(t => t.category === "division") || []
-  const wildCards = playoffData?.filter(t => t.category === "wildcard") || []
-  const eliminated = playoffData?.filter(t => t.category === "eliminated") || []
+  const enriched = playoffData && playoffData.length > 0 ? enrichWithPlayoffGb(playoffData) : (playoffData || [])
+
+  const divLeaders = enriched.filter(t => t.category === "division")
+  const wildCards = enriched.filter(t => t.category === "wildcard")
+  const eliminated = enriched.filter(t => t.category === "eliminated")
 
   return (
     <div className="standings-section">
