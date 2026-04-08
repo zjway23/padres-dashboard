@@ -11,9 +11,9 @@ const TIMEZONES = [
 
 const TABS = [
   { label: "Dashboard", value: "dashboard" },
-  { label: "⭐ Favorites", value: "favorites" },
+  { label: "Favorites", value: "favorites" },
   { label: "Bullpen", value: "bullpen" },
-  { label: "🏆 Playoff Push", value: "wildcard" },
+  { label: "Playoff Push", value: "wildcard" },
 ]
 
 function Settings({ favoriteTeam, onSave, onClose, isFirstSetup, timezone, onTimezoneChange, defaultTab, onDefaultTabChange }) {

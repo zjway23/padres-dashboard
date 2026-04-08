@@ -35,7 +35,7 @@ function App() {
   const [standingsDivision, setStandingsDivision] = useState("")
   const [prevGame, setPrevGame] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState("dashboard")
+  const [activeTab, setActiveTab] = useState(localStorage.getItem("defaultTab") || "dashboard")
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState([])
@@ -59,7 +59,7 @@ function App() {
   })
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [timezone, setTimezone] = useState(() => localStorage.getItem("timezone") || "America/New_York")
-  const [defaultTab, setDefaultTab] = useState("dashboard")
+  const [defaultTab, setDefaultTab] = useState(localStorage.getItem("defaultTab") || "dashboard")
   const [prefsLoading, setPrefsLoading] = useState(true)
 
   useEffect(() => {
@@ -99,6 +99,7 @@ function App() {
   }
 
   const handleDefaultTabChange = (tab) => {
+    localStorage.setItem("defaultTab", tab)
     setDefaultTab(tab)
     if (user) {
       fetch(`${API}/api/preferences`, {
@@ -137,6 +138,7 @@ function App() {
             if (prefs.default_tab) {
               setDefaultTab(prefs.default_tab)
               setActiveTab(prefs.default_tab)
+              localStorage.setItem("defaultTab", prefs.default_tab)
             }
             setPrefsLoading(false)
           })
@@ -415,7 +417,7 @@ useEffect(() => {
           className={`tab ${activeTab === "favorites" ? "active" : ""}`}
           onClick={() => setActiveTab("favorites")}
         >
-          ⭐ Favorites
+          Favorites
         </button>
         <button
           className={`tab ${activeTab === "bullpen" ? "active" : ""}`}
@@ -427,7 +429,7 @@ useEffect(() => {
           className={`tab ${activeTab === "wildcard" ? "active" : ""}`}
           onClick={() => setActiveTab("wildcard")}
         >
-          🏆 Playoff Push
+          Playoff Push
         </button>
 
         {activeTab === "favorites" && (
