@@ -81,7 +81,8 @@ function App() {
   const handleTeamChange = (teamId) => {
     localStorage.setItem("favoriteTeam", teamId)
     setFavoriteTeam(teamId)
-    setPlayers(prev => prev.filter(p => p.favorited))
+    // Do NOT clear players here — favorites must remain visible during team switch.
+    // fetchRoster → fetchFavoritesWithRoster will replace players atomically once ready.
     setStandings([])
     setLive(null)
     setPrevGame(null)
@@ -241,9 +242,10 @@ function App() {
         const favoritedPlayers = [...updated, ...newPlayers].filter(p => p.favorited)
         preloadPlayerGames(favoritedPlayers)
         setPlayers([...updated, ...newPlayers])
+        setLoading(false)
         setFavoritesLoaded(true)
       })
-      .catch(err => console.error("Favorites fetch error:", err))
+      .catch(err => { console.error("Favorites fetch error:", err); setLoading(false) })
   }
 
   const preloadPlayerGames = (favoritedPlayers) => {
@@ -266,11 +268,11 @@ function App() {
     fetch(`${API}/api/roster?team=${team}&uid=${user.uid}`)
       .then(res => res.json())
       .then(data => {
-        setPlayers(data)
-        setLoading(false)
+        // Don't call setPlayers here — wait for fetchFavoritesWithRoster to merge
+        // favorites before updating state, preventing a transient "no favorites" flash.
         fetchFavoritesWithRoster(data, team)
       })
-      .catch(err => console.error("Roster fetch error:", err))
+      .catch(err => { console.error("Roster fetch error:", err); setLoading(false) })
   }
 
   const fetchStandings = (team) => {
@@ -573,11 +575,16 @@ useEffect(() => {
         </>
       )}
 
-      {activeTab === "favorites" && (
-        favoritesLoaded 
-          ? <FavoritesTab players={players} onToggleFavorite={toggleFavorite} playerGames={playerGames} API={API} timezone={timezone} />
-          : <p style={{ textAlign: "center", color: "#aaa", marginTop: 40 }}>Loading favorites...</p>
-      )}
+      <div style={{ display: activeTab === "favorites" ? "block" : "none" }}>
+        <FavoritesTab
+          players={players}
+          onToggleFavorite={toggleFavorite}
+          playerGames={playerGames}
+          API={API}
+          timezone={timezone}
+          favoritesLoaded={favoritesLoaded}
+        />
+      </div>
 
       {activeTab === "bullpen" && (
         <div style={{ position: "relative" }}>
