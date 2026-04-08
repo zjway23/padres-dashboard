@@ -60,6 +60,7 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [timezone, setTimezone] = useState(() => localStorage.getItem("timezone") || "America/New_York")
   const [defaultTab, setDefaultTab] = useState("dashboard")
+  const [prefsLoading, setPrefsLoading] = useState(true)
 
   useEffect(() => {
     applyTeamTheme(favoriteTeam)
@@ -137,8 +138,14 @@ function App() {
               setDefaultTab(prefs.default_tab)
               setActiveTab(prefs.default_tab)
             }
+            setPrefsLoading(false)
           })
-          .catch(err => console.error("Preferences fetch error:", err))
+          .catch(err => {
+            console.error("Preferences fetch error:", err)
+            setPrefsLoading(false)
+          })
+      } else {
+        setPrefsLoading(false)
       }
     })
     return () => unsubscribe()
@@ -338,7 +345,7 @@ useEffect(() => {
   }
 }, [user, favoriteTeam])
 
-  if (authLoading) return (
+  if (authLoading || prefsLoading) return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0a1929" }}>
       <p style={{ color: "#ffc425" }}>Loading...</p>
     </div>

@@ -40,11 +40,16 @@ function LiveGame({ live, prevGame, nextGame, favoriteTeam, timezone }) {
     try {
       const dt = new Date(isoString)
       const tz = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
-      return dt.toLocaleTimeString("en-US", {
+      const raw = dt.toLocaleTimeString("en-US", {
         hour: "numeric", minute: "2-digit",
         timeZoneName: "short",
         timeZone: tz
       })
+      return raw
+        .replace(/\bEDT\b|\bEST\b/g, "ET")
+        .replace(/\bCDT\b|\bCST\b/g, "CT")
+        .replace(/\bMDT\b|\bMST\b/g, "MT")
+        .replace(/\bPDT\b|\bPST\b/g, "PT")
     } catch { return "" }
   }
 

@@ -342,7 +342,7 @@ def standings_api():
             "leagueId": league_id,
             "season": season,
             "standingsTypes": "regularSeason",
-            "hydrate": "division,team"
+            "hydrate": "division,team,record(splitRecords)"
         }
         data = requests.get(url, params=params).json()
 
@@ -353,13 +353,16 @@ def standings_api():
                 division_name = DIVISION_NAMES.get(div_id, record.get("division", {}).get("name", ""))
                 teams = []
                 for t in sorted(team_records, key=lambda x: int(x.get("divisionRank", 99))):
+                    splits = t.get("records", {}).get("splitRecords", [])
+                    l10_rec = next((s for s in splits if s.get("type") == "lastTen"), None)
+                    l10 = f"{l10_rec['wins']}-{l10_rec['losses']}" if l10_rec else "N/A"
                     teams.append({
                         "name": t["team"]["name"],
                         "wins": t["wins"],
                         "losses": t["losses"],
                         "pct": t["winningPercentage"],
                         "gb": t.get("gamesBack", "-"),
-                        "l10": "N/A"
+                        "l10": l10
                     })
                 return jsonify({"division_name": division_name, "teams": teams})
 

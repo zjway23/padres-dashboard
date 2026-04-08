@@ -247,7 +247,12 @@ function PlayerNextGame({ playerId, API, timezone = "America/Los_Angeles" }) {
 
   const dt = new Date(nextGame.game_datetime)
   const formatted = dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
-  const time = dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short", timeZone: timezone })
+  const rawTime = dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short", timeZone: timezone })
+  const time = rawTime
+    .replace(/\bEDT\b|\bEST\b/g, "ET")
+    .replace(/\bCDT\b|\bCST\b/g, "CT")
+    .replace(/\bMDT\b|\bMST\b/g, "MT")
+    .replace(/\bPDT\b|\bPST\b/g, "PT")
 
   return (
     <div style={{
@@ -297,7 +302,7 @@ function PlayerCard({ p, onToggleFavorite, preloadedGames, API, timezone }) {
             color: p.team === "San Diego Padres" ? "#ffc425" : "#8ab4c9",
             fontSize: 13
           }}>
-            {p.team === "San Diego Padres" ? "SD Padres" : p.team === "Unknown" ? "Prospect" : p.team}
+            {p.team === "Unknown" ? "Prospect" : p.team}
           </span>
           <span className="pos-badge" style={{ marginLeft: 8 }}>{p.position}</span>
         </div>
