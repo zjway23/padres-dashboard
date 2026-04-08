@@ -3,6 +3,7 @@ from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from datetime import date
 import os
+import time
 import requests
 
 mlb_session = requests.Session()
@@ -512,7 +513,6 @@ def live_game_api():
     schedule_url = "https://statsapi.mlb.com/api/v1/schedule"
 
     # ONLY check today — never look back at old finished games
-    import time
     params = {"sportId": 1, "teamId": team_id, "date": today, "hydrate": "linescore", "_": int(time.time())}
     data = mlb_session.get(schedule_url, params=params).json()    
     dates = data.get("dates", [])
@@ -828,7 +828,19 @@ def player_game_plays(player_id, game_pk):
             if pe.get("hitData"):
                 hit_data = pe["hitData"]
                 break
-        play_info = {"event": event, "description": description}
+        about = play.get("about", {})
+        play_events = play.get("playEvents", [])
+        outs_before = None
+        if play_events:
+            first_count = play_events[0].get("count", {})
+            outs_before = first_count.get("outs", None)
+        play_info = {
+            "event": event,
+            "description": description,
+            "inning": about.get("inning"),
+            "is_top": about.get("isTopInning"),
+            "outs_before": outs_before,
+        }
         if hit_data:
             play_info["ev"] = hit_data.get("launchSpeed", None)
             play_info["la"] = hit_data.get("launchAngle", None)
@@ -839,6 +851,129 @@ def player_game_plays(player_id, game_pk):
         plays_detail.append(play_info)
 
     return jsonify(plays_detail)
+
+
+@app.route("/api/player-live/<int:player_id>")
+def player_live(player_id):
+    """Return live game context for a specific player: inning, score, outs,
+    batting order position, and batters/innings until next PA."""
+    try:
+        person_data = mlb_session.get(
+            f"https://statsapi.mlb.com/api/v1/people/{player_id}?hydrate=currentTeam"
+        ).json()
+        people = person_data.get("people", [])
+        if not people:
+            return jsonify(None)
+        current_team = people[0].get("currentTeam", {})
+        team_id = current_team.get("id")
+        if not team_id:
+            return jsonify(None)
+
+        today = date.today().strftime("%Y-%m-%d")
+        params = {
+            "sportId": 1, "teamId": team_id, "date": today,
+            "hydrate": "linescore", "_": int(time.time())
+        }
+        sched = mlb_session.get("https://statsapi.mlb.com/api/v1/schedule", params=params).json()
+        dates = sched.get("dates", [])
+        if not dates:
+            return jsonify(None)
+
+        game = dates[0]["games"][0]
+        game_pk = game["gamePk"]
+        status = game["status"]["detailedState"]
+
+        live_statuses = ("In Progress", "Manager challenge")
+        if status not in live_statuses and not status.startswith("Delayed"):
+            return jsonify({
+                "status": status,
+                "game_pk": game_pk,
+                "away": game["teams"]["away"]["team"]["name"],
+                "home": game["teams"]["home"]["team"]["name"],
+                "away_score": game["teams"]["away"].get("score", 0),
+                "home_score": game["teams"]["home"].get("score", 0),
+            })
+
+        live_data = mlb_session.get(
+            f"https://statsapi.mlb.com/api/v1.1/game/{game_pk}/feed/live"
+        ).json()
+        linescore = live_data["liveData"]["linescore"]
+        plays = live_data["liveData"]["plays"]
+        boxscore = live_data["liveData"]["boxscore"]
+
+        current_play = plays.get("currentPlay", {})
+        matchup = current_play.get("matchup", {})
+        current_batter_id = matchup.get("batter", {}).get("id")
+
+        home_batting_order = boxscore["teams"]["home"].get("battingOrder", [])
+        away_batting_order = boxscore["teams"]["away"].get("battingOrder", [])
+
+        home_team_id = game["teams"]["home"]["team"]["id"]
+        is_home = (team_id == home_team_id)
+        player_batting_order = home_batting_order if is_home else away_batting_order
+
+        half = linescore.get("inningHalf", "")
+        outs = linescore.get("outs", 0)
+
+        # Find player's batting order spot (1-indexed; 0 if not in lineup)
+        batting_spot = 0
+        player_order_index = -1
+        for i, pid in enumerate(player_batting_order):
+            if pid == player_id:
+                batting_spot = i + 1
+                player_order_index = i
+                break
+
+        batters_until = None
+        inning_projection = None
+
+        if batting_spot > 0:
+            # Is player's team currently batting?
+            is_player_team_batting = (
+                (is_home and half == "Bottom") or
+                (not is_home and half == "Top")
+            )
+            if is_player_team_batting and current_batter_id is not None:
+                batting_team_order = home_batting_order if half == "Bottom" else away_batting_order
+                current_batter_order_index = -1
+                for i, pid in enumerate(batting_team_order):
+                    if pid == current_batter_id:
+                        current_batter_order_index = i
+                        break
+                if current_batter_order_index >= 0:
+                    batters_until = (player_order_index - current_batter_order_index) % 9
+
+            # Inning projection based on batters until up
+            if batters_until is not None:
+                if batters_until <= 3:
+                    inning_projection = 0
+                elif batters_until <= 6:
+                    inning_projection = 1
+                else:
+                    inning_projection = 2
+                # Two-outs rule: if not due immediately and 2 outs, bump +1 inning
+                if batters_until > 0 and outs == 2:
+                    inning_projection = max(inning_projection, 1)
+
+        return jsonify({
+            "status": status,
+            "game_pk": game_pk,
+            "inning": linescore.get("currentInningOrdinal", "N/A"),
+            "inning_num": linescore.get("currentInning", 0),
+            "half": half,
+            "outs": outs,
+            "away_score": game["teams"]["away"].get("score", 0),
+            "home_score": game["teams"]["home"].get("score", 0),
+            "away": game["teams"]["away"]["team"]["name"],
+            "home": game["teams"]["home"]["team"]["name"],
+            "batting_spot": batting_spot,
+            "batters_until": batters_until,
+            "inning_projection": inning_projection,
+            "is_home": is_home,
+        })
+    except Exception as e:
+        print(f"player_live error for {player_id}: {e}")
+        return jsonify(None)
 
 @app.route("/api/wildcard")
 def wildcard_api():

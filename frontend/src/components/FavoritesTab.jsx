@@ -72,15 +72,31 @@ function PlayRow({ play }) {
   const location = play.location ? LOCATION_MAP[play.location] || play.location : null
   const subtext = [trajectory, location].filter(Boolean).join(" · ")
 
+  const inningMarker = play.inning != null
+    ? `${play.is_top ? "^" : "v"}${play.inning}`
+    : null
+  const outsText = play.outs_before != null ? `${play.outs_before} out${play.outs_before !== 1 ? "s" : ""}` : null
+  const leftMeta = [inningMarker, outsText].filter(Boolean).join(" · ")
+
   return (
     <div style={{
       display: "flex",
       alignItems: "flex-start",
-      gap: 16,
+      gap: 12,
       padding: "10px 0",
       borderBottom: "1px solid #1a3a4a"
     }}>
-      <div style={{ minWidth: 130 }}>
+      {/* Left: inning marker + outs */}
+      {leftMeta && (
+        <div style={{ minWidth: 60, flexShrink: 0 }}>
+          <div style={{ color: "#7a9db5", fontSize: 11, fontWeight: "bold", letterSpacing: "0.3px" }}>
+            {leftMeta}
+          </div>
+        </div>
+      )}
+
+      {/* Center: event type */}
+      <div style={{ minWidth: 110, flex: "0 0 auto" }}>
         <div style={{ color: "#ffc425", fontWeight: "bold", fontSize: 13 }}>
           {play.event}
         </div>
@@ -95,22 +111,31 @@ function PlayRow({ play }) {
           </div>
         )}
       </div>
-      {hasHitData && (
-        <div style={{ display: "flex", gap: 6 }}>
-          <div style={{ background: "#1a3a4a", borderRadius: 6, padding: "4px 8px", textAlign: "center", minWidth: 52 }}>
-            <div style={{ color: "#ffc425", fontSize: 10 }}>EV</div>
-            <div style={{ fontSize: 13, fontWeight: "bold" }}>{play.ev ? `${play.ev}` : "N/A"}</div>
+
+      {/* Right: EV/LA/DIST + description */}
+      <div style={{ flex: 1, display: "flex", gap: 6, alignItems: "flex-start", flexWrap: "wrap" }}>
+        {hasHitData && (
+          <>
+            <div style={{ background: "#1a3a4a", borderRadius: 6, padding: "4px 8px", textAlign: "center", minWidth: 52 }}>
+              <div style={{ color: "#ffc425", fontSize: 10 }}>EV</div>
+              <div style={{ fontSize: 13, fontWeight: "bold" }}>{play.ev ? `${play.ev}` : "N/A"}</div>
+            </div>
+            <div style={{ background: "#1a3a4a", borderRadius: 6, padding: "4px 8px", textAlign: "center", minWidth: 52 }}>
+              <div style={{ color: "#ffc425", fontSize: 10 }}>LA</div>
+              <div style={{ fontSize: 13, fontWeight: "bold" }}>{play.la !== null ? `${play.la}°` : "N/A"}</div>
+            </div>
+            <div style={{ background: "#1a3a4a", borderRadius: 6, padding: "4px 8px", textAlign: "center", minWidth: 52 }}>
+              <div style={{ color: "#ffc425", fontSize: 10 }}>DIST</div>
+              <div style={{ fontSize: 13, fontWeight: "bold" }}>{play.dist ? `${play.dist}ft` : "N/A"}</div>
+            </div>
+          </>
+        )}
+        {play.description && (
+          <div style={{ color: "#aaa", fontSize: 11, marginTop: 4, flex: "1 1 100%", lineHeight: "1.4" }}>
+            {play.description}
           </div>
-          <div style={{ background: "#1a3a4a", borderRadius: 6, padding: "4px 8px", textAlign: "center", minWidth: 52 }}>
-            <div style={{ color: "#ffc425", fontSize: 10 }}>LA</div>
-            <div style={{ fontSize: 13, fontWeight: "bold" }}>{play.la !== null ? `${play.la}°` : "N/A"}</div>
-          </div>
-          <div style={{ background: "#1a3a4a", borderRadius: 6, padding: "4px 8px", textAlign: "center", minWidth: 52 }}>
-            <div style={{ color: "#ffc425", fontSize: 10 }}>DIST</div>
-            <div style={{ fontSize: 13, fontWeight: "bold" }}>{play.dist ? `${play.dist}ft` : "N/A"}</div>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }
@@ -278,6 +303,86 @@ function PlayerNextGame({ playerId, API, timezone = "America/Los_Angeles" }) {
   )
 }
 
+function PlayerLiveContext({ playerId, API }) {
+  const [liveData, setLiveData] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    function fetchLive() {
+      fetch(`${API}/api/player-live/${playerId}`)
+        .then(res => res.json())
+        .then(data => { if (!cancelled) { setLiveData(data); setLoading(false) } })
+        .catch(() => { if (!cancelled) setLoading(false) })
+    }
+    fetchLive()
+    // Poll every 30 seconds while game is live
+    const interval = setInterval(fetchLive, 30000)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [playerId, API])
+
+  if (loading) return null
+  if (!liveData) return null
+
+  const isLive = liveData.status === "In Progress" ||
+    liveData.status === "Manager challenge" ||
+    (liveData.status || "").startsWith("Delayed")
+
+  if (!isLive) return null
+
+  const halfArrow = liveData.half === "Top" ? "^" : "v"
+  const inningNum = liveData.inning_num || ""
+  const inningLabel = `${halfArrow}${inningNum}`
+
+  const awayScore = liveData.away_score ?? 0
+  const homeScore = liveData.home_score ?? 0
+  const scoreLabel = `${liveData.away} ${awayScore} – ${homeScore} ${liveData.home}`
+
+  const outsLabel = `${liveData.outs} out${liveData.outs !== 1 ? "s" : ""}`
+
+  let dueUpLabel = null
+  if (liveData.batting_spot > 0 && liveData.batters_until != null) {
+    const n = liveData.batters_until
+    const proj = liveData.inning_projection
+    const bLabel = n === 0 ? "Due up now" : `${n} batter${n !== 1 ? "s" : ""} away`
+    let innLabel = ""
+    if (proj === 0) innLabel = "this inning"
+    else if (proj === 1) innLabel = "next inning"
+    else innLabel = `+${proj} innings`
+    dueUpLabel = n === 0 ? bLabel : `${bLabel} · ${innLabel}`
+  }
+
+  return (
+    <div style={{
+      display: "flex",
+      flexWrap: "wrap",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 10,
+      padding: "6px 10px",
+      background: "#0d2235",
+      borderRadius: 8,
+      borderLeft: "3px solid #4caf50"
+    }}>
+      <span style={{ color: "#4caf50", fontWeight: "bold", fontSize: 13, minWidth: 28 }}>
+        {inningLabel}
+      </span>
+      <span style={{ color: "#ccc", fontSize: 12 }}>{scoreLabel}</span>
+      <span style={{ color: "#aaa", fontSize: 12 }}>{outsLabel}</span>
+      {liveData.batting_spot > 0 && (
+        <span style={{ color: "#7a9db5", fontSize: 12 }}>
+          Batting #{liveData.batting_spot}
+        </span>
+      )}
+      {dueUpLabel && (
+        <span style={{ color: "#ffc425", fontSize: 12, fontStyle: "italic" }}>
+          {dueUpLabel}
+        </span>
+      )}
+    </div>
+  )
+}
+
 function PlayerCard({ p, onToggleFavorite, preloadedGames, API, timezone }) {
   const sb = getSBDisplay(p)
 
@@ -314,6 +419,7 @@ function PlayerCard({ p, onToggleFavorite, preloadedGames, API, timezone }) {
         </span>
       </div>
 
+      <PlayerLiveContext playerId={p.player_id} API={API} />
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         <StatBox label="AVG" value={p.avg} />
         <StatBox label="OPS" value={p.ops} />
@@ -337,7 +443,15 @@ function PlayerCard({ p, onToggleFavorite, preloadedGames, API, timezone }) {
   )
 }
 
-function FavoritesTab({ players, onToggleFavorite, playerGames, API, timezone }) {
+function FavoritesTab({ players, onToggleFavorite, playerGames, API, timezone, favoritesLoaded }) {
+  if (!favoritesLoaded) {
+    return (
+      <p style={{ textAlign: "center", color: "#aaa", marginTop: 40 }}>
+        Loading favorites...
+      </p>
+    )
+  }
+
   const favorites = players.filter(p => p.favorited)
 
   return (
