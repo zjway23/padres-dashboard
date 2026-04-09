@@ -108,7 +108,7 @@ function PlayRow({ play }) {
       </div>
 
       {/* Center: event type */}
-      <div style={{ minWidth: 110, flex: "0 0 auto", marginTop: 4 }}>
+      <div style={{ minWidth: 110, flex: "0 0 auto", marginTop: 2 }}>
         <div style={{ color: "#ffc425", fontWeight: "bold", fontSize: 13 }}>
           {play.event}
         </div>
@@ -118,7 +118,7 @@ function PlayRow({ play }) {
           </div>
         )}
         {subtext && (
-          <div style={{ color: "#aaa", fontSize: 11, marginTop: 4, textTransform: "capitalize" }}>
+          <div style={{ color: "#aaa", fontSize: 11, marginTop: 6.5, textTransform: "capitalize" }}>
             {subtext}
           </div>
         )}
