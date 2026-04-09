@@ -31,6 +31,10 @@ const HEURISTIC_BASE_GB = 10      // max GB threshold early in season
 const HEURISTIC_MIN_GB  = 2       // floor: never exclude teams within 2 GB
 const HEURISTIC_SLOPE   = 0.8     // how fast threshold shrinks (0 = never shrinks, 1 = linear to 0)
 
+const UPCOMING_GAMES_FETCH_COUNT = 20  // how many upcoming games to fetch per team (for series grouping)
+const MAX_SERIES_GAP_DAYS        = 2   // max day gap between games to consider them the same series
+const MS_PER_DAY                 = 1000 * 60 * 60 * 24
+
 function computeGbThreshold(gamesRemaining) {
   const gamesPlayed = MAX_GAMES - (gamesRemaining ?? MAX_GAMES)
   const seasonProgress = Math.max(0, Math.min(1, gamesPlayed / MAX_GAMES))
@@ -191,9 +195,9 @@ function groupIntoSeries(games) {
     const g = games[i]
     const dayDiff =
       (new Date(g.date + "T12:00:00") - new Date(cur.endDate + "T12:00:00")) /
-      (1000 * 60 * 60 * 24)
+      MS_PER_DAY
 
-    if (g.opponent === cur.opponent && g.is_home === cur.is_home && dayDiff <= 2) {
+    if (g.opponent === cur.opponent && g.is_home === cur.is_home && dayDiff <= MAX_SERIES_GAP_DAYS) {
       cur.count++
       cur.endDate = g.date
     } else {
@@ -713,7 +717,7 @@ export default function PlayoffPushTab({ playoffData, standings, favoriteTeam, A
 
       const today = new Date().toISOString().split("T")[0]
 
-      fetch(`${API}/api/upcoming-games?team=${encodeURIComponent(abbrev)}&count=20`)
+      fetch(`${API}/api/upcoming-games?team=${encodeURIComponent(abbrev)}&count=${UPCOMING_GAMES_FETCH_COUNT}`)
         .then(r => r.json())
         .then(games => {
           const firstGame = games?.[0]
