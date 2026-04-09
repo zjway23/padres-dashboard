@@ -7,6 +7,7 @@ import RosterTable from "./components/RosterTable"
 import Standings from "./components/Standings"
 import FavoritesTab from "./components/FavoritesTab"
 import Settings from "./components/Settings"
+import PlayoffPushTab from "./components/PlayoffPushTab"
 import "./App.css"
 import teamsData from "./data/teams.json"
 
@@ -598,13 +599,11 @@ useEffect(() => {
 
       {activeTab === "wildcard" && (
         <div style={{ position: "relative" }}>
-          <Standings
-            teams={[]}
-            divisionName=""
+          <PlayoffPushTab
             playoffData={playoffData}
-            isAL={teamsData.find(t => t.id === favoriteTeam)?.division?.startsWith("AL") || false}
+            standings={standings}
             favoriteTeam={favoriteTeam}
-            showDivision={false}
+            API={API}
           />
         </div>
       )}
