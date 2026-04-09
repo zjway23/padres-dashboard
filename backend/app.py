@@ -5,6 +5,8 @@ from datetime import date
 import os
 import time
 import requests
+from dotenv import load_dotenv
+load_dotenv()
 
 mlb_session = requests.Session()
 mlb_session.headers.update({
@@ -834,12 +836,25 @@ def player_game_plays(player_id, game_pk):
         if play_events:
             first_count = play_events[0].get("count", {})
             outs_before = first_count.get("outs", None)
+        play_index = about.get("atBatIndex", 0)
+        prev_play = next((p for p in all_plays if p.get("about", {}).get("atBatIndex") == play_index - 1), None)
+        if prev_play:
+            pr = prev_play.get("matchup", {})
+            on_first = bool(pr.get("postOnFirst"))
+            on_second = bool(pr.get("postOnSecond"))
+            on_third = bool(pr.get("postOnThird"))
+        else:
+            on_first = on_second = on_third = False
+
         play_info = {
             "event": event,
             "description": description,
             "inning": about.get("inning"),
             "is_top": about.get("isTopInning"),
             "outs_before": outs_before,
+            "on_first": on_first,
+            "on_second": on_second,
+            "on_third": on_third,
         }
         if hit_data:
             play_info["ev"] = hit_data.get("launchSpeed", None)

@@ -86,17 +86,29 @@ function PlayRow({ play }) {
       padding: "10px 0",
       borderBottom: "1px solid #1a3a4a"
     }}>
-      {/* Left: inning marker + outs */}
-      {leftMeta && (
-        <div style={{ minWidth: 60, flexShrink: 0 }}>
-          <div style={{ color: "#7a9db5", fontSize: 11, fontWeight: "bold", letterSpacing: "0.3px" }}>
-            {leftMeta}
+      {/* Inning + outs + diamond */}
+      <div style={{ minWidth: 64, flexShrink: 0, textAlign: "center" }}>
+        <div style={{ marginTop: 4, display: "inline-block" }}>
+          <div style={{ textAlign: "center", lineHeight: "1", marginBottom: -5 }}>
+            <span style={{ width: 9, height: 9, background: play.on_second ? "#ffc425" : "transparent", border: "1.5px solid #ffc425", transform: "rotate(45deg)", display: "inline-block", verticalAlign: "middle", marginBottom: 4, boxSizing: "border-box" }}></span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <span style={{ width: 9, height: 9, background: play.on_third ? "#ffc425" : "transparent", border: "1.5px solid #ffc425", transform: "rotate(45deg)", display: "inline-block", verticalAlign: "middle", boxSizing: "border-box" }}></span>
+            <span style={{ width: 9, height: 9, display: "inline-block" }}></span>
+            <span style={{ width: 9, height: 9, background: play.on_first ? "#ffc425" : "transparent", border: "1.5px solid #ffc425", transform: "rotate(45deg)", display: "inline-block", verticalAlign: "middle", boxSizing: "border-box" }}></span>
           </div>
         </div>
-      )}
+        {(play.inning != null || play.outs_before != null) && (
+          <div style={{ color: "#7a9db5", fontSize: 11, marginTop: 1, whiteSpace: "nowrap" }}>
+            {play.inning != null ? `${play.inning}` : ""}
+            {play.inning != null && play.outs_before != null ? " · " : ""}
+            {play.outs_before != null ? `${play.outs_before} out${play.outs_before !== 1 ? "s" : ""}` : ""}
+          </div>
+        )}
+      </div>
 
       {/* Center: event type */}
-      <div style={{ minWidth: 110, flex: "0 0 auto" }}>
+      <div style={{ minWidth: 110, flex: "0 0 auto", marginTop: 4 }}>
         <div style={{ color: "#ffc425", fontWeight: "bold", fontSize: 13 }}>
           {play.event}
         </div>
@@ -106,14 +118,14 @@ function PlayRow({ play }) {
           </div>
         )}
         {subtext && (
-          <div style={{ color: "#aaa", fontSize: 11, marginTop: 2, textTransform: "capitalize" }}>
+          <div style={{ color: "#aaa", fontSize: 11, marginTop: 4, textTransform: "capitalize" }}>
             {subtext}
           </div>
         )}
       </div>
 
       {/* Right: EV/LA/DIST + description */}
-      <div style={{ flex: 1, display: "flex", gap: 6, alignItems: "flex-start", flexWrap: "wrap" }}>
+      <div style={{ flex: 1, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
         {hasHitData && (
           <>
             <div style={{ background: "#1a3a4a", borderRadius: 6, padding: "4px 8px", textAlign: "center", minWidth: 52 }}>
@@ -128,19 +140,23 @@ function PlayRow({ play }) {
               <div style={{ color: "#ffc425", fontSize: 10 }}>DIST</div>
               <div style={{ fontSize: 13, fontWeight: "bold" }}>{play.dist ? `${play.dist}ft` : "N/A"}</div>
             </div>
+            <div>
+            {play.description && (
+              <div style={{ color: "#aaa", fontSize: 11, marginTop: 4, flex: "1 1 100%", lineHeight: "1.4", marginLeft: 6, maxWidth: 225, textAlign: "left" }}>            
+                {play.description}
+              </div>
+            )}
+            </div>
+
           </>
         )}
-        {play.description && (
-          <div style={{ color: "#aaa", fontSize: 11, marginTop: 4, flex: "1 1 100%", lineHeight: "1.4" }}>
-            {play.description}
-          </div>
-        )}
+        
       </div>
     </div>
   )
 }
 
-function PlayerLastGame({ playerId, preloadedGames }) {
+function PlayerLastGame({ playerId, preloadedGames, API }) {
   const [games, setGames] = useState([])
   const [index, setIndex] = useState(0)
   const [plays, setPlays] = useState([])
@@ -155,7 +171,7 @@ function PlayerLastGame({ playerId, preloadedGames }) {
       fetchPlays(playerId, preloadedGames[lastIndex].game_pk)
       setLoadingGames(false)
     } else {
-      fetch(`https://padres-dashboard.onrender.com/api/playergame/${playerId}`)
+      fetch(`${API}/api/playergame/${playerId}`)
         .then(res => res.json())
         .then(data => {
           if (data && data.length > 0) {
@@ -174,7 +190,7 @@ function PlayerLastGame({ playerId, preloadedGames }) {
     if (!gamePk) return
     setLoadingPlays(true)
     setPlays([])
-    fetch(`https://padres-dashboard.onrender.com/api/playergame/${pid}/${gamePk}`)
+    fetch(`${API}/api/playergame/${pid}/${gamePk}`)
       .then(res => res.json())
       .then(data => {
         setPlays(data)
@@ -437,7 +453,7 @@ function PlayerCard({ p, onToggleFavorite, preloadedGames, API, timezone }) {
         <StatBox label="G" value={p.games} />
       </div>
 
-      <PlayerLastGame playerId={p.player_id} preloadedGames={preloadedGames} />
+      <PlayerLastGame playerId={p.player_id} preloadedGames={preloadedGames} API={API} />
       <PlayerNextGame playerId={p.player_id} API={API} timezone={timezone} />
     </div>
   )
