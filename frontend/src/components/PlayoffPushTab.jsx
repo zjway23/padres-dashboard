@@ -16,11 +16,14 @@ const MAX_GAMES = 162
  * Narrowing heuristic for "Teams to Watch":
  *
  * As the season progresses, the range of "threatening" teams shrinks.
- * - Early in season (< 40% played): include teams within 10 GB
- * - Mid season (40–70%): scale down linearly toward 5 GB
- * - Late season (> 70%): scale down further toward 2 GB
+ * The threshold is computed continuously as:
+ *   threshold = max(HEURISTIC_MIN_GB, HEURISTIC_BASE_GB * (1 - gamesPlayed/162 * HEURISTIC_SLOPE))
  *
- * Threshold = max(2, BASE * (1 - season_progress * SLOPE_FACTOR))
+ * With the defaults below this gives roughly:
+ *   0 games played  → 10 GB threshold
+ *   81 games played → 6 GB threshold
+ *   130 games played → 3.6 GB threshold
+ *   162 games played → 2 GB threshold (floor)
  *
  * These values are configurable via the constants below.
  */
