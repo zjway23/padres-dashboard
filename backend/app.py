@@ -91,9 +91,26 @@ TEAM_FULL_NAMES = {
 }
 
 
+ABBREV_TO_SLUG = {
+    "SD": "padres", "LAD": "dodgers", "SF": "giants",
+    "COL": "rockies", "ARI": "diamondbacks",
+    "CHC": "cubs", "MIL": "brewers", "STL": "cardinals",
+    "CIN": "reds", "PIT": "pirates",
+    "ATL": "braves", "NYM": "mets", "PHI": "phillies",
+    "MIA": "marlins", "WSH": "nationals",
+    "HOU": "astros", "LAA": "angels", "OAK": "athletics",
+    "SEA": "mariners", "TEX": "rangers",
+    "CWS": "whitesox", "CLE": "guardians", "DET": "tigers",
+    "KC": "royals", "MIN": "twins",
+    "NYY": "yankees", "BOS": "redsox", "TB": "rays",
+    "TOR": "bluejays", "BAL": "orioles",
+}
+
+
 def resolve_team_id(team_param, default=135):
-    """Convert a team name slug (e.g. 'dodgers') to an MLB Stats API team ID."""
-    return TEAM_IDS.get(normalize_team_key(team_param), default)
+    """Convert a team name slug or abbreviation (e.g. 'dodgers' or 'LAD') to an MLB Stats API team ID."""
+    slug = ABBREV_TO_SLUG.get(team_param.upper() if team_param else "", team_param)
+    return TEAM_IDS.get(normalize_team_key(slug), default)
 
 
 def normalize_team_key(team_param, default="padres"):
@@ -430,7 +447,7 @@ def upcoming_games_api():
     }
 
     team_param = request.args.get("team", "padres")
-    count = min(int(request.args.get("count", 5)), 10)
+    count = min(int(request.args.get("count", 5)), 25)
 
     # Resolve abbreviation to slug if needed
     slug = ABBREV_TO_SLUG.get(team_param.upper(), team_param)
@@ -467,6 +484,77 @@ def upcoming_games_api():
             break
 
     return jsonify(games[:count])
+
+
+@app.route("/api/h2h")
+def h2h_api():
+    """Return head-to-head record between two teams for the current season.
+    Query params:
+      team     – slug or abbreviation of the primary team (e.g. 'padres' or 'SD')
+      opponent – slug or abbreviation of the opponent  (e.g. 'dodgers' or 'LAD')
+    """
+    team_param = request.args.get("team", "padres")
+    opp_param  = request.args.get("opponent", "")
+
+    if not opp_param:
+        return jsonify({"wins": 0, "losses": 0, "played": 0})
+
+    team_id = resolve_team_id(team_param)
+    opp_id  = resolve_team_id(opp_param)
+
+    if not team_id or not opp_id or team_id == opp_id:
+        return jsonify({"wins": 0, "losses": 0, "played": 0})
+
+    today = date.today().strftime("%Y-%m-%d")
+    url = "https://statsapi.mlb.com/api/v1/schedule"
+    params = {
+        "sportId": 1,
+        "teamId": team_id,
+        "opponentId": opp_id,
+        "season": 2026,
+        "gameType": "R",
+        "startDate": "2026-03-01",
+        "endDate": today,
+    }
+
+    try:
+        data = requests.get(url, params=params, timeout=8).json()
+    except Exception:
+        return jsonify({"wins": 0, "losses": 0, "played": 0})
+
+    wins = 0
+    losses = 0
+
+    for d in data.get("dates", []):
+        for g in d["games"]:
+            state = g["status"]["detailedState"]
+            if state not in ("Final", "Game Over", "Completed Early"):
+                continue
+
+            away_id  = g["teams"]["away"]["team"]["id"]
+            home_id  = g["teams"]["home"]["team"]["id"]
+
+            # Verify this game actually involves both teams
+            if not ((away_id == team_id and home_id == opp_id) or
+                    (away_id == opp_id  and home_id == team_id)):
+                continue
+
+            away_score = g["teams"]["away"].get("score", 0) or 0
+            home_score = g["teams"]["home"].get("score", 0) or 0
+            is_home    = home_id == team_id
+
+            if is_home:
+                if home_score > away_score:
+                    wins += 1
+                elif home_score < away_score:
+                    losses += 1
+            else:
+                if away_score > home_score:
+                    wins += 1
+                elif away_score < home_score:
+                    losses += 1
+
+    return jsonify({"wins": wins, "losses": losses, "played": wins + losses})
 
 
 @app.route("/api/player-next-game")
