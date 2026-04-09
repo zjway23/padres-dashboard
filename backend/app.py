@@ -404,6 +404,71 @@ def next_game_api():
             })
     return jsonify(None)
 
+@app.route("/api/upcoming-games")
+def upcoming_games_api():
+    """Return the next N upcoming games for a given team (by slug or abbreviation).
+    Query params:
+      team  – team slug (e.g. "padres") OR abbreviation (e.g. "SD")
+      count – number of games to return (default 5, max 10)
+    """
+    from datetime import timedelta
+
+    # Accept both slugs ("padres") and abbreviations ("SD")
+    ABBREV_TO_SLUG = {
+        "SD": "padres", "LAD": "dodgers", "SF": "giants",
+        "COL": "rockies", "ARI": "diamondbacks",
+        "CHC": "cubs", "MIL": "brewers", "STL": "cardinals",
+        "CIN": "reds", "PIT": "pirates",
+        "ATL": "braves", "NYM": "mets", "PHI": "phillies",
+        "MIA": "marlins", "WSH": "nationals",
+        "HOU": "astros", "LAA": "angels", "OAK": "athletics",
+        "SEA": "mariners", "TEX": "rangers",
+        "CWS": "whitesox", "CLE": "guardians", "DET": "tigers",
+        "KC": "royals", "MIN": "twins",
+        "NYY": "yankees", "BOS": "redsox", "TB": "rays",
+        "TOR": "bluejays", "BAL": "orioles",
+    }
+
+    team_param = request.args.get("team", "padres")
+    count = min(int(request.args.get("count", 5)), 10)
+
+    # Resolve abbreviation to slug if needed
+    slug = ABBREV_TO_SLUG.get(team_param.upper(), team_param)
+    team_id = resolve_team_id(slug)
+
+    today = date.today().strftime("%Y-%m-%d")
+    future_date = (date.today() + timedelta(days=30)).strftime("%Y-%m-%d")
+    url = "https://statsapi.mlb.com/api/v1/schedule"
+
+    games = []
+    for game_type in ["R", "S"]:
+        params = {
+            "sportId": 1, "teamId": team_id, "season": 2026,
+            "gameType": game_type,
+            "startDate": today, "endDate": future_date,
+        }
+        data = requests.get(url, params=params).json()
+        for d in data.get("dates", []):
+            for g in d["games"]:
+                if g["status"]["detailedState"] not in ("Final", "Game Over", "Completed Early"):
+                    away_team = g["teams"]["away"]["team"]
+                    home_team = g["teams"]["home"]["team"]
+                    is_home = home_team["id"] == team_id
+                    opponent = away_team["name"] if is_home else home_team["name"]
+                    opp_abbrev = away_team.get("abbreviation", "") if is_home else home_team.get("abbreviation", "")
+                    games.append({
+                        "date": d["date"],
+                        "opponent": opponent,
+                        "opponent_abbrev": opp_abbrev,
+                        "is_home": is_home,
+                        "game_datetime": g["gameDate"],
+                    })
+        if games:
+            break
+
+    return jsonify(games[:count])
+
+
 @app.route("/api/player-next-game")
 def player_next_game():
     from datetime import timedelta
