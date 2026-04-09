@@ -368,6 +368,7 @@ useEffect(() => {
           isFirstSetup={false}
           onSave={(teamId) => { handleTeamChange(teamId); setSettingsOpen(false) }}
           onClose={() => setSettingsOpen(false)}
+          onLogout={() => signOut(auth)}
           timezone={timezone}
           onTimezoneChange={handleTimezoneChange}
           defaultTab={defaultTab}
@@ -391,20 +392,6 @@ useEffect(() => {
             }}
           >
             ⚙️
-          </button>
-          <button
-            onClick={() => signOut(auth)}
-            style={{
-              background: "transparent",
-              border: "1.5px solid #aaa",
-              color: "#aaa",
-              borderRadius: 8,
-              padding: "4px 10px",
-              fontSize: 12,
-              cursor: "pointer"
-            }}
-          >
-            Log out
           </button>
         </div>
       </div>

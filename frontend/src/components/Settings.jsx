@@ -16,7 +16,7 @@ const TABS = [
   { label: "Playoff Push", value: "wildcard" },
 ]
 
-function Settings({ favoriteTeam, onSave, onClose, isFirstSetup, timezone, onTimezoneChange, defaultTab, onDefaultTabChange }) {
+function Settings({ favoriteTeam, onSave, onClose, onLogout, isFirstSetup, timezone, onTimezoneChange, defaultTab, onDefaultTabChange }) {
   const currentTeam = teams.find(t => t.id === favoriteTeam) || teams[0]
 
   return (
@@ -46,9 +46,26 @@ function Settings({ favoriteTeam, onSave, onClose, isFirstSetup, timezone, onTim
         border: `2px solid ${currentTeam.colors.accent}`
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-          <h2 style={{ color: "var(--color-accent)", margin: 0, fontSize: 20 }}>
-            {isFirstSetup ? "🏟️ Choose Your Team" : "⚙️ Settings"}
-          </h2>
+          {isFirstSetup ? (
+            <h2 style={{ color: "var(--color-accent)", margin: 0, fontSize: 20 }}>
+              🏟️ Choose Your Team
+            </h2>
+          ) : (
+            <button
+              onClick={onLogout}
+              style={{
+                background: "transparent",
+                border: "1.5px solid #aaa",
+                color: "#aaa",
+                borderRadius: 8,
+                padding: "4px 10px",
+                fontSize: 12,
+                cursor: "pointer"
+              }}
+            >
+              Log out
+            </button>
+          )}
           <button
             onClick={onClose}
             style={{
@@ -178,6 +195,25 @@ function Settings({ favoriteTeam, onSave, onClose, isFirstSetup, timezone, onTim
             </div>
           </div>
         )}
+
+        {/* Done button */}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+          <button
+            onClick={onClose}
+            style={{
+              background: "var(--color-accent)",
+              border: "none",
+              color: "#0d1f2d",
+              borderRadius: 8,
+              padding: "5px 14px",
+              fontSize: 12,
+              fontWeight: "bold",
+              cursor: "pointer"
+            }}
+          >
+            Done
+          </button>
+        </div>
       </div>
     </>
   )
