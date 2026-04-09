@@ -60,7 +60,8 @@ function Settings({ favoriteTeam, onSave, onClose, onLogout, isFirstSetup, timez
                 borderRadius: 8,
                 padding: "4px 10px",
                 fontSize: 12,
-                cursor: "pointer"
+                cursor: "pointer",
+                marginTop: -5.5
               }}
             >
               Log out
@@ -74,7 +75,8 @@ function Settings({ favoriteTeam, onSave, onClose, onLogout, isFirstSetup, timez
               color: "#aaa",
               fontSize: 20,
               cursor: "pointer",
-              lineHeight: 1
+              lineHeight: 1,
+              marginTop: -8
             }}
           >✕</button>
         </div>
@@ -198,21 +200,25 @@ function Settings({ favoriteTeam, onSave, onClose, onLogout, isFirstSetup, timez
 
         {/* Done button */}
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
-          <button
-            onClick={onClose}
-            style={{
-              background: "var(--color-accent)",
-              border: "none",
-              color: "#0d1f2d",
-              borderRadius: 8,
-              padding: "5px 14px",
-              fontSize: 12,
-              fontWeight: "bold",
-              cursor: "pointer"
-            }}
-          >
-            Done
-          </button>
+        <button
+          onClick={onClose}
+          style={{
+            background: "transparent",
+            border: "1.5px solid #444",
+            color: "white",
+            borderRadius: 8,
+            padding: "6px 12px",
+            fontSize: 13,
+            fontWeight: "normal",
+            cursor: "pointer",
+            transition: "all 0.15s ease",
+            whiteSpace: "nowrap",
+            marginBottom: -10,
+            marginTop: 5
+          }}
+        >
+          Done
+        </button>
         </div>
       </div>
     </>
