@@ -279,7 +279,7 @@ function UpcomingSeriesSection({ games, loading, liveData, teamName }) {
                 flexShrink: 0,
               }}
             >
-              {s.is_home ? "vs" : "@"}{s.opponent_abbrev || s.opponent}
+              {s.is_home ? "vs " : "@ "}{s.opponent_abbrev || s.opponent}
               <span style={{ color: "var(--text-muted)", marginLeft: 2 }}>({s.count})</span>
             </span>
           ))}
