@@ -230,7 +230,7 @@ function App() {
       .catch(err => console.error("Live fetch error:", err))
   }
 
-  const fetchFavoritesWithRoster = (rosterData, team) => {
+  const fetchFavoritesWithRoster = (rosterData) => {
     fetch(`${API}/api/favorites?uid=${user.uid}`)
       .then(res => res.json())
       .then(favs => {

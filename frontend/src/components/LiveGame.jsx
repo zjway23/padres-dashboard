@@ -21,6 +21,123 @@ function Diamond({ first, second, third }) {
   )
 }
 
+function formatGameTime(isoString, timezone) {
+  if (!isoString) return ""
+  try {
+    const dt = new Date(isoString)
+    const tz = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
+    const raw = dt.toLocaleTimeString("en-US", {
+      hour: "numeric", minute: "2-digit",
+      timeZoneName: "short",
+      timeZone: tz
+    })
+    return raw
+      .replace(/\bEDT\b|\bEST\b/g, "ET")
+      .replace(/\bCDT\b|\bCST\b/g, "CT")
+      .replace(/\bMDT\b|\bMST\b/g, "MT")
+      .replace(/\bPDT\b|\bPST\b/g, "PT")
+  } catch { return "" }
+}
+
+function formatDate(dateStr) {
+  const d = new Date(dateStr + "T12:00:00")
+  return d.toLocaleDateString("en-US", { weekday: "long", month: "numeric", day: "numeric", year: "numeric" })
+}
+
+function NextGameCard({ nextGame, timezone }) {
+  if (!nextGame) return null
+  const dt = new Date(nextGame.game_datetime)
+  const formatted = dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
+  const timeStr = formatGameTime(nextGame.game_datetime, timezone)
+  return (
+    <div style={{
+      marginBottom: 12,
+      padding: "8px 12px 16px",
+      background: "#0d1f2d",
+      borderRadius: 8,
+    }}>
+      <div style={{ color: "#ffc425", fontSize: 13, fontWeight: "bold", marginBottom: 4, letterSpacing: "0.5px" }}>
+        NEXT GAME {nextGame.game_type === "Spring Training" ? "· Spring Training" : ""}
+      </div>
+      <div style={{ fontSize: 13, fontWeight: "bold" }}>
+        {nextGame.away} vs {nextGame.home}
+      </div>
+      <div style={{ color: "#aaa", fontSize: 12, lineHeight: 2.2}}>
+        {formatted} · {timeStr}
+        {nextGame.venue && (
+          <span style={{ color: "#7a9db5", fontSize: 11, display: "block", lineHeight: 1.9 }}>{nextGame.venue}</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function PrevGameCard({ prevGame, favoriteTeamName }) {
+  if (!prevGame) return null
+  const awayWon = prevGame.away_score > prevGame.home_score
+  return (
+    <div style={{
+      background: "#0d1f2d", borderRadius: 8,
+      padding: "12px 14px 4px", textAlign: "left", fontSize: 13
+    }}>
+      <p style={{ color: "#ffc425", fontWeight: "bold", marginBottom: 8 }}>
+        PREVIOUS GAME
+      </p>
+      {[
+        { name: prevGame.away, score: prevGame.away_score, won: awayWon },
+        { name: prevGame.home, score: prevGame.home_score, won: !awayWon }
+      ].map((team, i) => {
+        const isFavorite = favoriteTeamName && team.name.includes(favoriteTeamName)
+        return (
+          <div key={i} style={{
+            display: "flex", alignItems: "center", gap: 8,
+            padding: "4px 0",
+            borderBottom: i === 0 ? "1px solid #1a3a4a" : "none"
+          }}>
+            <span style={{ color: team.won ? "#4caf50" : "#f44336", fontWeight: "bold", width: 16 }}>
+              {team.won ? "W" : "L"}
+            </span>
+            <span style={{
+              color: isFavorite ? "var(--color-accent)" : "white",
+              fontWeight: isFavorite ? "bold" : "normal",
+              minWidth: 160
+            }}>
+              {team.name}
+            </span>
+            <span style={{ fontWeight: "bold" }}>{team.score}</span>
+          </div>
+        )
+      })}
+      <p style={{ color: "#aaa", fontSize: 11, marginTop: 8 }}>{formatDate(prevGame.date)}</p>
+    </div>
+  )
+}
+
+function ScoringPlays({ summary }) {
+  if (!summary || summary.length === 0) return null
+  return (
+    <div style={{ marginTop: 12, textAlign: "left" }}>
+      <p style={{ color: "#ffc425", fontWeight: "bold", fontSize: 13, marginTop: 5 }}>
+        Scoring Plays
+      </p>
+      {summary.map((play, i) => (
+        <div key={i} style={{
+          fontSize: 12, padding: "6px 0",
+          borderBottom: "1px solid #0d1f2d", color: "#ccc"
+        }}>
+          <span style={{ color: "#ffc425", fontWeight: "bold", marginRight: 8, fontSize: 11 }}>
+            {play.inning}
+          </span>
+          <span style={{ marginRight: 8, fontWeight: "bold", color: "white" }}>
+            {play.away_score}-{play.home_score}
+          </span>
+          {play.description}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function LiveGame({ live, prevGame, nextGame, favoriteTeam, timezone }) {
   const isLive = live && live.status && (live.status.toLowerCase().includes("in progress") || live.status.toLowerCase().includes("live"))
   console.log("DEBUG Live Game:", { live, isLive, status: live?.status })
@@ -33,124 +150,6 @@ function LiveGame({ live, prevGame, nextGame, favoriteTeam, timezone }) {
     const onBase = ["single", "double", "triple", "home_run", "walk", "hit_by_pitch", "intent_walk", "error", "field_error", "catcher_interf"]
     if (onBase.some(e => event.includes(e))) return "rgba(76, 175, 80, 0.2)"
     return "rgba(244, 67, 54, 0.2)"
-  }
-
-  const formatGameTime = (isoString) => {
-    if (!isoString) return ""
-    try {
-      const dt = new Date(isoString)
-      const tz = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
-      const raw = dt.toLocaleTimeString("en-US", {
-        hour: "numeric", minute: "2-digit",
-        timeZoneName: "short",
-        timeZone: tz
-      })
-      return raw
-        .replace(/\bEDT\b|\bEST\b/g, "ET")
-        .replace(/\bCDT\b|\bCST\b/g, "CT")
-        .replace(/\bMDT\b|\bMST\b/g, "MT")
-        .replace(/\bPDT\b|\bPST\b/g, "PT")
-    } catch { return "" }
-  }
-
-  const formatDate = (dateStr) => {
-    const d = new Date(dateStr + "T12:00:00")
-    return d.toLocaleDateString("en-US", { weekday: "long", month: "numeric", day: "numeric", year: "numeric" })
-  }
-
-  const NextGameCard = () => {
-    if (!nextGame) return null
-    const dt = new Date(nextGame.game_datetime)
-    const formatted = dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
-    const timeStr = formatGameTime(nextGame.game_datetime)
-    return (
-      <div style={{
-        marginBottom: 12,
-        padding: "8px 12px 16px",
-        background: "#0d1f2d",
-        borderRadius: 8,
-      }}>
-        <div style={{ color: "#ffc425", fontSize: 13, fontWeight: "bold", marginBottom: 4, letterSpacing: "0.5px" }}>
-          NEXT GAME {nextGame.game_type === "Spring Training" ? "· Spring Training" : ""}
-        </div>
-        <div style={{ fontSize: 13, fontWeight: "bold" }}>
-          {nextGame.away} vs {nextGame.home}
-        </div>
-        <div style={{ color: "#aaa", fontSize: 12, lineHeight: 2.2}}>
-          {formatted} · {timeStr}
-          {nextGame.venue && (
-            <span style={{ color: "#7a9db5", fontSize: 11, display: "block", lineHeight: 1.9 }}>{nextGame.venue}</span>
-          )}
-        </div>
-      </div>
-    )
-  }
-
-  const PrevGameCard = () => {
-    if (!prevGame) return null
-    const awayWon = prevGame.away_score > prevGame.home_score
-    return (
-      <div style={{
-        background: "#0d1f2d", borderRadius: 8,
-        padding: "12px 14px 4px", textAlign: "left", fontSize: 13
-      }}>
-        <p style={{ color: "#ffc425", fontWeight: "bold", marginBottom: 8 }}>
-          PREVIOUS GAME
-        </p>
-        {[
-          { name: prevGame.away, score: prevGame.away_score, won: awayWon },
-          { name: prevGame.home, score: prevGame.home_score, won: !awayWon }
-        ].map((team, i) => {
-          const isFavorite = favoriteTeamName && team.name.includes(favoriteTeamName)
-          return (
-            <div key={i} style={{
-              display: "flex", alignItems: "center", gap: 8,
-              padding: "4px 0",
-              borderBottom: i === 0 ? "1px solid #1a3a4a" : "none"
-            }}>
-              <span style={{ color: team.won ? "#4caf50" : "#f44336", fontWeight: "bold", width: 16 }}>
-                {team.won ? "W" : "L"}
-              </span>
-              <span style={{
-                color: isFavorite ? "var(--color-accent)" : "white",
-                fontWeight: isFavorite ? "bold" : "normal",
-                minWidth: 160
-              }}>
-                {team.name}
-              </span>
-              <span style={{ fontWeight: "bold" }}>{team.score}</span>
-            </div>
-          )
-        })}
-        <p style={{ color: "#aaa", fontSize: 11, marginTop: 8 }}>{formatDate(prevGame.date)}</p>
-      </div>
-    )
-  }
-
-
-  const ScoringPlays = ({ summary }) => {
-    if (!summary || summary.length === 0) return null
-    return (
-      <div style={{ marginTop: 12, textAlign: "left" }}>
-        <p style={{ color: "#ffc425", fontWeight: "bold", fontSize: 13, marginTop: 5 }}>
-          Scoring Plays
-        </p>
-        {summary.map((play, i) => (
-          <div key={i} style={{
-            fontSize: 12, padding: "6px 0",
-            borderBottom: "1px solid #0d1f2d", color: "#ccc"
-          }}>
-            <span style={{ color: "#ffc425", fontWeight: "bold", marginRight: 8, fontSize: 11 }}>
-              {play.inning}
-            </span>
-            <span style={{ marginRight: 8, fontWeight: "bold", color: "white" }}>
-              {play.away_score}-{play.home_score}
-            </span>
-            {play.description}
-          </div>
-        ))}
-      </div>
-    )
   }
 
   // ── MODE 1: GAME IN PROGRESS ────────────────────────────────────────────────
@@ -194,10 +193,11 @@ function LiveGame({ live, prevGame, nextGame, favoriteTeam, timezone }) {
         </div>
         <div style={{ marginTop: 16, maxHeight: 384, overflowY: "auto" }}>
           {live?.scoring_summary?.length > 0 && (
-            <ScoringPlays summary={live.scoring_summary} />          )}
+            <ScoringPlays summary={live.scoring_summary} />
+          )}
         </div>
         <div style={{ marginTop: 16 }}>
-          <PrevGameCard />
+          <PrevGameCard prevGame={prevGame} favoriteTeamName={favoriteTeamName} />
         </div>
       </div>
     )
@@ -206,8 +206,8 @@ function LiveGame({ live, prevGame, nextGame, favoriteTeam, timezone }) {
   // ── MODE 2: NO GAME / FINAL ─────────────────────────────────────────────────
   return (
     <div className="game-card" style={{ display: "flex", flexDirection: "column" }}>
-      <NextGameCard />
-      <PrevGameCard />
+      <NextGameCard nextGame={nextGame} timezone={timezone} />
+      <PrevGameCard prevGame={prevGame} favoriteTeamName={favoriteTeamName} />
       {prevGame?.scoring_summary?.length > 0 && (
         <ScoringPlays summary={prevGame.scoring_summary} />
       )}

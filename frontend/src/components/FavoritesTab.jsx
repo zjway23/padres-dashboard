@@ -72,12 +72,6 @@ function PlayRow({ play }) {
   const location = play.location ? LOCATION_MAP[play.location] || play.location : null
   const subtext = [trajectory, location].filter(Boolean).join(" · ")
 
-  const inningMarker = play.inning != null
-    ? `${play.is_top ? "^" : "v"}${play.inning}`
-    : null
-  const outsText = play.outs_before != null ? `${play.outs_before} out${play.outs_before !== 1 ? "s" : ""}` : null
-  const leftMeta = [inningMarker, outsText].filter(Boolean).join(" · ")
-
   return (
     <div style={{
       display: "flex",
@@ -163,6 +157,19 @@ function PlayerLastGame({ playerId, preloadedGames, API }) {
   const [loadingGames, setLoadingGames] = useState(true)
   const [loadingPlays, setLoadingPlays] = useState(false)
 
+  const fetchPlays = (pid, gamePk) => {
+    if (!gamePk) return
+    setLoadingPlays(true)
+    setPlays([])
+    fetch(`${API}/api/playergame/${pid}/${gamePk}`)
+      .then(res => res.json())
+      .then(data => {
+        setPlays(data)
+        setLoadingPlays(false)
+      })
+      .catch(() => setLoadingPlays(false))
+  }
+
   useEffect(() => {
     if (preloadedGames && preloadedGames.length > 0) {
       setGames(preloadedGames)
@@ -184,20 +191,8 @@ function PlayerLastGame({ playerId, preloadedGames, API }) {
         })
         .catch(() => setLoadingGames(false))
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playerId, preloadedGames])
-
-  const fetchPlays = (pid, gamePk) => {
-    if (!gamePk) return
-    setLoadingPlays(true)
-    setPlays([])
-    fetch(`${API}/api/playergame/${pid}/${gamePk}`)
-      .then(res => res.json())
-      .then(data => {
-        setPlays(data)
-        setLoadingPlays(false)
-      })
-      .catch(() => setLoadingPlays(false))
-  }
 
   const navigate = (newIndex) => {
     setIndex(newIndex)
@@ -276,7 +271,7 @@ function PlayerNextGame({ playerId, API, timezone = "America/Los_Angeles" }) {
         const res = await fetch(`${API}/api/player-next-game?team_id=${teamId}`)
         const data = await res.json()
         if (!cancelled) setNextGame(data)
-      } catch {}
+      } catch { /* fetch failed – loading flag cleared below */ }
       if (!cancelled) setLoading(false)
     }
     load()

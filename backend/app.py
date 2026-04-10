@@ -447,14 +447,15 @@ def upcoming_games_api():
     }
 
     team_param = request.args.get("team", "padres")
-    count = min(int(request.args.get("count", 5)), 25)
+    count = min(int(request.args.get("count", 5)), 162)
 
     # Resolve abbreviation to slug if needed
     slug = ABBREV_TO_SLUG.get(team_param.upper(), team_param)
     team_id = resolve_team_id(slug)
 
     today = date.today().strftime("%Y-%m-%d")
-    future_date = (date.today() + timedelta(days=30)).strftime("%Y-%m-%d")
+    # Extend to end of 2026 MLB regular season so full remaining schedule is available
+    future_date = "2026-10-05"
     url = "https://statsapi.mlb.com/api/v1/schedule"
 
     games = []
