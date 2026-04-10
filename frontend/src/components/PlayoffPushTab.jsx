@@ -31,7 +31,7 @@ const HEURISTIC_BASE_GB = 10      // max GB threshold early in season
 const HEURISTIC_MIN_GB  = 2       // floor: never exclude teams within 2 GB
 const HEURISTIC_SLOPE   = 0.8     // how fast threshold shrinks (0 = never shrinks, 1 = linear to 0)
 
-const UPCOMING_GAMES_FETCH_COUNT = 20  // how many upcoming games to fetch per team (for series grouping)
+const UPCOMING_GAMES_FETCH_COUNT = 162 // fetch full remaining schedule per team (for SOS + series grouping)
 const MAX_SERIES_GAP_DAYS        = 2   // max day gap between games to consider them the same series
 const MS_PER_DAY                 = 1000 * 60 * 60 * 24
 
@@ -47,6 +47,29 @@ function parseGb(gb) {
   if (!gb || gb === "-" || gb === "0") return 0
   const n = parseFloat(gb)
   return isNaN(n) ? 0 : n
+}
+
+/**
+ * Compute Strength of Schedule (SOS) as the average win% of all opponents
+ * across the given remaining games list, looked up in playoffData.
+ * Returns { sos: number (0–1), gamesUsed: number } or null if insufficient data.
+ */
+function computeSOS(games, playoffData) {
+  if (!games || games.length === 0 || !playoffData || playoffData.length === 0) return null
+  // Build win% lookup by abbreviation (case-insensitive)
+  const pctByAbbrev = {}
+  playoffData.forEach(t => {
+    if (t.abbreviation) {
+      const p = parseFloat(t.pct)
+      if (!isNaN(p)) pctByAbbrev[t.abbreviation.toUpperCase()] = p
+    }
+  })
+  const pcts = games
+    .map(g => pctByAbbrev[(g.opponent_abbrev || "").toUpperCase()])
+    .filter(p => p != null)
+  if (pcts.length === 0) return null
+  const avg = pcts.reduce((s, p) => s + p, 0) / pcts.length
+  return { sos: avg, gamesUsed: pcts.length, totalGames: games.length }
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -214,7 +237,7 @@ function groupIntoSeries(games) {
 function UpcomingSeriesSection({ games, loading, liveData, teamName }) {
   if (loading) {
     return (
-      <div style={{ marginTop: 8, color: "var(--text-muted)", fontSize: 12 }}>loading…</div>
+      <div style={{ marginTop: 6, color: "var(--text-muted)", fontSize: 12 }}>loading…</div>
     )
   }
 
@@ -227,13 +250,19 @@ function UpcomingSeriesSection({ games, loading, liveData, teamName }) {
   const series = groupIntoSeries(gamesForSeries).slice(0, 3)
 
   return (
-    <div style={{ marginTop: 8 }}>
+    <div style={{ marginTop: 6 }}>
       {isLive && <CompactLiveTracker liveData={liveData} teamName={teamName} />}
 
       {series.length === 0 ? (
-        <span style={{ color: "var(--text-muted)", fontSize: 12 }}>No upcoming games</span>
+        <span style={{ color: "var(--text-muted)", fontSize: 11 }}>No upcoming games</span>
       ) : (
-        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{
+          display: "flex",
+          gap: 4,
+          alignItems: "center",
+          flexWrap: "nowrap",
+          overflow: "hidden",
+        }}>
           <span style={{ fontSize: 11, color: "var(--text-muted)", marginRight: 2, flexShrink: 0 }}>
             {isLive ? "After:" : "Next:"}
           </span>
@@ -243,14 +272,15 @@ function UpcomingSeriesSection({ games, loading, liveData, teamName }) {
               style={{
                 background: "var(--padres-dark-navy)",
                 borderRadius: 5,
-                padding: "2px 7px",
+                padding: "2px 6px",
                 fontSize: 11,
                 color: "var(--text-muted-light)",
                 whiteSpace: "nowrap",
+                flexShrink: 0,
               }}
             >
-              {s.is_home ? "vs" : "@"} {s.opponent_abbrev || s.opponent}
-              <span style={{ color: "var(--text-muted)", marginLeft: 3 }}>({s.count}G)</span>
+              {s.is_home ? "vs" : "@"}{s.opponent_abbrev || s.opponent}
+              <span style={{ color: "var(--text-muted)", marginLeft: 2 }}>({s.count})</span>
             </span>
           ))}
         </div>
@@ -260,7 +290,8 @@ function UpcomingSeriesSection({ games, loading, liveData, teamName }) {
 }
 
 /** A card for a single "team to watch" */
-function TeamToWatchCard({ team, favoriteTeamName, upcomingGames, gamesLoading, h2hRecord, h2hLoading }) {
+function TeamToWatchCard({ team, favoriteTeamName, upcomingGames, gamesLoading, h2hRecord, h2hLoading, playoffData }) {
+  const [infoTab, setInfoTab] = useState(null) // null | "sos" | "games"
   const isFav = team.name === favoriteTeamName
   const gbDisplay = team._teamsToWatchGb !== undefined
     ? (team._teamsToWatchGb === 0 ? "—" : (team._teamsToWatchGb > 0 ? `+${team._teamsToWatchGb.toFixed(1)} GB` : `${Math.abs(team._teamsToWatchGb).toFixed(1)} ahead`))
@@ -291,18 +322,28 @@ function TeamToWatchCard({ team, favoriteTeamName, upcomingGames, gamesLoading, 
     }
   }
 
-  const liveData  = upcomingGames?.live ?? null
+  const liveData = upcomingGames?.live ?? null
+
+  // SOS computation
+  const sosResult = useMemo(
+    () => computeSOS(upcomingGames?.games, playoffData),
+    [upcomingGames, playoffData]
+  )
+
+  const gamesRem = team.games_remaining !== undefined && team.games_remaining !== "-"
+    ? team.games_remaining
+    : null
 
   return (
     <div style={{
       background: isFav ? "var(--color-highlight)" : "var(--padres-dark-navy)",
       border: `1.5px solid ${isFav ? "var(--color-accent)" : "transparent"}`,
       borderRadius: 10,
-      padding: "12px 14px",
-      marginBottom: 10,
+      padding: "10px 14px",
+      marginBottom: 8,
     }}>
       {/* Header row */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
         <span style={{
           fontWeight: "bold",
           color: isFav ? "var(--color-accent)" : "var(--text-primary)",
@@ -325,16 +366,11 @@ function TeamToWatchCard({ team, favoriteTeamName, upcomingGames, gamesLoading, 
         </span>
         <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: "bold" }}>
           {team.wins}–{team.losses}
-          {team.games_remaining !== undefined && team.games_remaining !== "-" && (
-            <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 6 }}>
-              ({team.games_remaining} rem)
-            </span>
-          )}
         </span>
       </div>
 
       {/* Stats grid */}
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 5 }}>
         <StatPill label="GB" value={gbDisplay} />
         <StatPill label="PCT" value={team.pct || "—"} />
         {!isFav && (
@@ -361,13 +397,87 @@ function TeamToWatchCard({ team, favoriteTeamName, upcomingGames, gamesLoading, 
         )}
       </div>
 
-      {/* Live tracker + upcoming series */}
+      {/* Next series — single line */}
       <UpcomingSeriesSection
         games={upcomingGames?.games}
         loading={gamesLoading}
         liveData={liveData}
         teamName={team.name}
       />
+
+      {/* Extra info tabs: SOS + Games Rem */}
+      <div style={{ display: "flex", gap: 5, marginTop: 7, alignItems: "center" }}>
+        {[["sos", "SOS"], ["games", "Games Rem"]].map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setInfoTab(prev => prev === key ? null : key)}
+            style={{
+              fontSize: 10,
+              fontWeight: "bold",
+              padding: "2px 8px",
+              borderRadius: 5,
+              border: `1px solid ${infoTab === key ? "var(--color-accent)" : "var(--text-muted)"}`,
+              background: infoTab === key ? "var(--color-accent)" : "transparent",
+              color: infoTab === key ? "var(--padres-dark-navy)" : "var(--text-muted)",
+              cursor: "pointer",
+              transition: "all 0.1s",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Info tab content */}
+      {infoTab === "sos" && (
+        <div style={{
+          marginTop: 6,
+          background: "var(--padres-navy)",
+          borderRadius: 6,
+          padding: "7px 10px",
+          fontSize: 12,
+        }}>
+          {sosResult ? (
+            <>
+              <span style={{ color: "var(--text-muted)", marginRight: 6 }}>Remaining SOS:</span>
+              <span style={{ color: "var(--color-accent)", fontWeight: "bold", fontSize: 14 }}>
+                {(sosResult.sos * 100).toFixed(1)}%
+              </span>
+              <span style={{ color: "var(--text-muted)", fontSize: 10, marginLeft: 6 }}>
+                avg opp win% · {sosResult.gamesUsed}/{sosResult.totalGames} games matched
+              </span>
+            </>
+          ) : gamesLoading ? (
+            <span style={{ color: "var(--text-muted)" }}>loading…</span>
+          ) : (
+            <span style={{ color: "var(--text-muted)" }}>SOS data unavailable</span>
+          )}
+        </div>
+      )}
+
+      {infoTab === "games" && (
+        <div style={{
+          marginTop: 6,
+          background: "var(--padres-navy)",
+          borderRadius: 6,
+          padding: "7px 10px",
+          fontSize: 12,
+        }}>
+          <span style={{ color: "var(--text-muted)", marginRight: 6 }}>Games remaining:</span>
+          {gamesRem != null ? (
+            <span style={{ color: "var(--color-accent)", fontWeight: "bold", fontSize: 14 }}>
+              {gamesRem}
+            </span>
+          ) : (
+            <span style={{ color: "var(--text-muted)" }}>—</span>
+          )}
+          {upcomingGames?.games && upcomingGames.games.length > 0 && (
+            <span style={{ color: "var(--text-muted)", fontSize: 10, marginLeft: 6 }}>
+              ({upcomingGames.games.length} fetched)
+            </span>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -395,6 +505,70 @@ function StatPill({ label, value, muted, green, red, title }) {
       <div style={{ fontSize: 12, fontWeight: "bold", color: valueColor }}>
         {value}
       </div>
+    </div>
+  )
+}
+
+// ─── Compact Standings Panel (left side of Teams to Watch) ───────────────────
+
+function CompactStandingsPanel({ playoffData, teamsToWatch }) {
+  if (!playoffData || playoffData.length === 0) {
+    return <div style={{ color: "var(--text-muted)", fontSize: 12, padding: "8px 4px" }}>Loading…</div>
+  }
+
+  const sorted = [...playoffData].sort((a, b) => (a.league_rank ?? 99) - (b.league_rank ?? 99))
+  const watchNames = new Set((teamsToWatch || []).map(t => t.name))
+
+  const dividerStyle = {
+    borderTop: "1px solid rgba(255,196,37,0.4)",
+    margin: "3px 0",
+  }
+
+  return (
+    <div style={{ fontSize: 12 }}>
+      {sorted.map((t, i) => {
+        const isWatch = watchNames.has(t.name)
+        // Look up short name from teamsData
+        const meta = teamsData.find(td => td.name === t.name)
+        const shortName = meta?.shortName || t.name.split(" ").pop()
+
+        return (
+          <div key={t.name}>
+            <div style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "3px 6px",
+              borderRadius: 4,
+              background: isWatch ? "rgba(255,196,37,0.1)" : "transparent",
+              border: `1px solid ${isWatch ? "rgba(255,196,37,0.35)" : "transparent"}`,
+              marginBottom: 1,
+              gap: 4,
+            }}>
+              <span style={{
+                fontSize: 11,
+                color: isWatch ? "var(--color-accent)" : "var(--text-primary)",
+                fontWeight: isWatch ? "bold" : "normal",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}>
+                {shortName}
+              </span>
+              <span style={{
+                fontSize: 11,
+                color: "var(--text-muted)",
+                whiteSpace: "nowrap",
+                flexShrink: 0,
+              }}>
+                {t.wins}–{t.losses}
+              </span>
+            </div>
+            {/* Divider between 3rd and 4th (i=2) and 6th and 7th (i=5) */}
+            {(i === 2 || i === 5) && <div style={dividerStyle} />}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -789,44 +963,60 @@ export default function PlayoffPushTab({ playoffData, standings, favoriteTeam, A
 
   return (
     <div>
-      {/* ── TOP ROW: Teams to Watch (full width) ────────────────────────── */}
-      <FlexCard
-        title="Teams to Watch"
-        style={{ paddingBottom: 8, marginBottom: 20 }}
-      >
-        <ViewToggle value={teamsToWatchView} onChange={setTeamsToWatchView} />
+      {/* ── TOP ROW: Compact Standings (left) + Teams to Watch (right) ──── */}
+      <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap", marginBottom: 20 }}>
 
-        {/* Heuristic info */}
-        <div style={{
-          fontSize: 11,
-          color: "var(--text-muted)",
-          marginBottom: 12,
-          textAlign: "center",
-        }}>
-          {teamsToWatchView === "division" ? "Division" : "Wild Card"} threats
-          {" "}· showing teams within {gbThreshold.toFixed(1)} GB
-          {" "}({MAX_GAMES - gamesRemaining} games played)
+        {/* ── LEFT: Compact league standings ──────────────────────────────── */}
+        <div style={{ flex: "0 0 160px", minWidth: 140 }}>
+          <FlexCard title="Standings" style={{ padding: "14px 10px", marginBottom: 0 }}>
+            <CompactStandingsPanel
+              playoffData={playoffData}
+              teamsToWatch={teamsToWatch}
+            />
+          </FlexCard>
         </div>
 
-        {teamsToWatch.length === 0 ? (
-          <LoadingCard label="No teams to watch (data loading…)" />
-        ) : (
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-start" }}>
-            {teamsToWatch.map((team) => (
-              <div key={team.name} style={{ flex: "1 1 280px", minWidth: 260 }}>
-                <TeamToWatchCard
-                  team={team}
-                  favoriteTeamName={favoriteTeamName}
-                  upcomingGames={upcomingGames[team.name]}
-                  gamesLoading={upcomingGames[team.name]?.loading ?? true}
-                  h2hRecord={h2hRecords[team.name]}
-                  h2hLoading={h2hRecords[team.name]?.loading ?? false}
-                />
+        {/* ── RIGHT: Teams to Watch (stacked full-width) ────────────────── */}
+        <div style={{ flex: "1 1 280px", minWidth: 260 }}>
+          <FlexCard
+            title="Teams to Watch"
+            style={{ paddingBottom: 8, marginBottom: 0 }}
+          >
+            <ViewToggle value={teamsToWatchView} onChange={setTeamsToWatchView} />
+
+            {/* Heuristic info */}
+            <div style={{
+              fontSize: 11,
+              color: "var(--text-muted)",
+              marginBottom: 10,
+              textAlign: "center",
+            }}>
+              {teamsToWatchView === "division" ? "Division" : "Wild Card"} threats
+              {" "}· within {gbThreshold.toFixed(1)} GB
+              {" "}({MAX_GAMES - gamesRemaining} games played)
+            </div>
+
+            {teamsToWatch.length === 0 ? (
+              <LoadingCard label="No teams to watch (data loading…)" />
+            ) : (
+              <div>
+                {teamsToWatch.map((team) => (
+                  <TeamToWatchCard
+                    key={team.name}
+                    team={team}
+                    favoriteTeamName={favoriteTeamName}
+                    upcomingGames={upcomingGames[team.name]}
+                    gamesLoading={upcomingGames[team.name]?.loading ?? true}
+                    h2hRecord={h2hRecords[team.name]}
+                    h2hLoading={h2hRecords[team.name]?.loading ?? false}
+                    playoffData={playoffData}
+                  />
+                ))}
               </div>
-            ))}
-          </div>
-        )}
-      </FlexCard>
+            )}
+          </FlexCard>
+        </div>
+      </div>
 
       {/* ── BOTTOM: two-column layout ────────────────────────────────────── */}
       <div style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
