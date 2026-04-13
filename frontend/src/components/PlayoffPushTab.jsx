@@ -291,7 +291,6 @@ function UpcomingSeriesSection({ games, loading, liveData, teamName }) {
 
 /** A card for a single "team to watch" */
 function TeamToWatchCard({ team, favoriteTeamName, upcomingGames, gamesLoading, h2hRecord, h2hLoading, playoffData }) {
-  const [infoTab, setInfoTab] = useState(null) // null | "sos" | "games"
   const isFav = team.name === favoriteTeamName
   const gbDisplay = team._teamsToWatchGb !== undefined
     ? (team._teamsToWatchGb === 0 ? "—" : (team._teamsToWatchGb > 0 ? `+${team._teamsToWatchGb.toFixed(1)} GB` : `${Math.abs(team._teamsToWatchGb).toFixed(1)} ahead`))
@@ -371,6 +370,18 @@ function TeamToWatchCard({ team, favoriteTeamName, upcomingGames, gamesLoading, 
 
       {/* Stats grid */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 5 }}>
+        <StatPill
+          label="SOS"
+          value={gamesLoading ? "…" : (sosResult ? `${(sosResult.sos * 100).toFixed(1)}%` : "—")}
+          muted={gamesLoading || !sosResult}
+          title="Strength of Schedule: average win% of remaining opponents"
+        />
+        <StatPill
+          label="G.Rem"
+          value={gamesRem != null ? `${gamesRem}` : "—"}
+          muted={gamesRem == null}
+          title="Games remaining this season"
+        />
         <StatPill label="GB" value={gbDisplay} />
         <StatPill label="PCT" value={team.pct || "—"} />
         {!isFav && (
@@ -404,80 +415,6 @@ function TeamToWatchCard({ team, favoriteTeamName, upcomingGames, gamesLoading, 
         liveData={liveData}
         teamName={team.name}
       />
-
-      {/* Extra info tabs: SOS + Games Rem */}
-      <div style={{ display: "flex", gap: 5, marginTop: 7, alignItems: "center" }}>
-        {[["sos", "SOS"], ["games", "Games Rem"]].map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => setInfoTab(prev => prev === key ? null : key)}
-            style={{
-              fontSize: 10,
-              fontWeight: "bold",
-              padding: "2px 8px",
-              borderRadius: 5,
-              border: `1px solid ${infoTab === key ? "var(--color-accent)" : "var(--text-muted)"}`,
-              background: infoTab === key ? "var(--color-accent)" : "transparent",
-              color: infoTab === key ? "var(--padres-dark-navy)" : "var(--text-muted)",
-              cursor: "pointer",
-              transition: "all 0.1s",
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* Info tab content */}
-      {infoTab === "sos" && (
-        <div style={{
-          marginTop: 6,
-          background: "var(--padres-navy)",
-          borderRadius: 6,
-          padding: "7px 10px",
-          fontSize: 12,
-        }}>
-          {sosResult ? (
-            <>
-              <span style={{ color: "var(--text-muted)", marginRight: 6 }}>Remaining SOS:</span>
-              <span style={{ color: "var(--color-accent)", fontWeight: "bold", fontSize: 14 }}>
-                {(sosResult.sos * 100).toFixed(1)}%
-              </span>
-              <span style={{ color: "var(--text-muted)", fontSize: 10, marginLeft: 6 }}>
-                avg opp win% · {sosResult.gamesUsed}/{sosResult.totalGames} games matched
-              </span>
-            </>
-          ) : gamesLoading ? (
-            <span style={{ color: "var(--text-muted)" }}>loading…</span>
-          ) : (
-            <span style={{ color: "var(--text-muted)" }}>SOS data unavailable</span>
-          )}
-        </div>
-      )}
-
-      {infoTab === "games" && (
-        <div style={{
-          marginTop: 6,
-          background: "var(--padres-navy)",
-          borderRadius: 6,
-          padding: "7px 10px",
-          fontSize: 12,
-        }}>
-          <span style={{ color: "var(--text-muted)", marginRight: 6 }}>Games remaining:</span>
-          {gamesRem != null ? (
-            <span style={{ color: "var(--color-accent)", fontWeight: "bold", fontSize: 14 }}>
-              {gamesRem}
-            </span>
-          ) : (
-            <span style={{ color: "var(--text-muted)" }}>—</span>
-          )}
-          {upcomingGames?.games && upcomingGames.games.length > 0 && (
-            <span style={{ color: "var(--text-muted)", fontSize: 10, marginLeft: 6 }}>
-              ({upcomingGames.games.length} fetched)
-            </span>
-          )}
-        </div>
-      )}
     </div>
   )
 }
@@ -963,58 +900,82 @@ export default function PlayoffPushTab({ playoffData, standings, favoriteTeam, A
 
   return (
     <div>
-      {/* ── TOP ROW: Compact Standings (left) + Teams to Watch (right) ──── */}
-      <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap", marginBottom: 20 }}>
+      {/* ── TOP ROW: Combined Standings + Teams to Watch ──────────────────── */}
+      <div style={{
+        background: "var(--padres-navy)",
+        borderRadius: 12,
+        padding: 20,
+        marginBottom: 20,
+        display: "flex",
+        gap: 16,
+        alignItems: "stretch",
+      }}>
 
-        {/* ── LEFT: Compact league standings ──────────────────────────────── */}
-        <div style={{ flex: "0 0 160px", minWidth: 140 }}>
-          <FlexCard title="Standings" style={{ padding: "14px 10px", marginBottom: 0 }}>
+        {/* ── LEFT: Compact league standings (full height) ─────────────────── */}
+        <div style={{ flex: "0 0 160px", minWidth: 140, display: "flex", flexDirection: "column" }}>
+          <h2 style={{
+            color: "var(--color-accent)",
+            fontSize: "1.1rem",
+            marginBottom: 14,
+            textAlign: "center",
+            marginTop: 0,
+          }}>
+            Standings
+          </h2>
+          <div style={{ flex: 1 }}>
             <CompactStandingsPanel
               playoffData={playoffData}
               teamsToWatch={teamsToWatch}
             />
-          </FlexCard>
+          </div>
         </div>
 
-        {/* ── RIGHT: Teams to Watch (stacked full-width) ────────────────── */}
+        {/* Vertical divider */}
+        <div style={{ width: 1, background: "rgba(255,196,37,0.2)", flexShrink: 0 }} />
+
+        {/* ── RIGHT: Teams to Watch ─────────────────────────────────────────── */}
         <div style={{ flex: "1 1 280px", minWidth: 260 }}>
-          <FlexCard
-            title="Teams to Watch"
-            style={{ paddingBottom: 8, marginBottom: 0 }}
-          >
-            <ViewToggle value={teamsToWatchView} onChange={setTeamsToWatchView} />
+          <h2 style={{
+            color: "var(--color-accent)",
+            fontSize: "1.1rem",
+            marginBottom: 14,
+            textAlign: "center",
+            marginTop: 0,
+          }}>
+            Teams to Watch
+          </h2>
+          <ViewToggle value={teamsToWatchView} onChange={setTeamsToWatchView} />
 
-            {/* Heuristic info */}
-            <div style={{
-              fontSize: 11,
-              color: "var(--text-muted)",
-              marginBottom: 10,
-              textAlign: "center",
-            }}>
-              {teamsToWatchView === "division" ? "Division" : "Wild Card"} threats
-              {" "}· within {gbThreshold.toFixed(1)} GB
-              {" "}({MAX_GAMES - gamesRemaining} games played)
+          {/* Heuristic info */}
+          <div style={{
+            fontSize: 11,
+            color: "var(--text-muted)",
+            marginBottom: 10,
+            textAlign: "center",
+          }}>
+            {teamsToWatchView === "division" ? "Division" : "Wild Card"} threats
+            {" "}· within {gbThreshold.toFixed(1)} GB
+            {" "}({MAX_GAMES - gamesRemaining} games played)
+          </div>
+
+          {teamsToWatch.length === 0 ? (
+            <LoadingCard label="No teams to watch (data loading…)" />
+          ) : (
+            <div>
+              {teamsToWatch.map((team) => (
+                <TeamToWatchCard
+                  key={team.name}
+                  team={team}
+                  favoriteTeamName={favoriteTeamName}
+                  upcomingGames={upcomingGames[team.name]}
+                  gamesLoading={upcomingGames[team.name]?.loading ?? true}
+                  h2hRecord={h2hRecords[team.name]}
+                  h2hLoading={h2hRecords[team.name]?.loading ?? false}
+                  playoffData={playoffData}
+                />
+              ))}
             </div>
-
-            {teamsToWatch.length === 0 ? (
-              <LoadingCard label="No teams to watch (data loading…)" />
-            ) : (
-              <div>
-                {teamsToWatch.map((team) => (
-                  <TeamToWatchCard
-                    key={team.name}
-                    team={team}
-                    favoriteTeamName={favoriteTeamName}
-                    upcomingGames={upcomingGames[team.name]}
-                    gamesLoading={upcomingGames[team.name]?.loading ?? true}
-                    h2hRecord={h2hRecords[team.name]}
-                    h2hLoading={h2hRecords[team.name]?.loading ?? false}
-                    playoffData={playoffData}
-                  />
-                ))}
-              </div>
-            )}
-          </FlexCard>
+          )}
         </div>
       </div>
 
