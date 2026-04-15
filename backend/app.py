@@ -1,7 +1,7 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
-from datetime import date
+from datetime import date, datetime, timezone, timedelta
 import os
 import time
 import requests
@@ -665,7 +665,14 @@ def prev_game_api():
 def live_game_api():
     team_param = request.args.get("team", "padres")
     team_id = resolve_team_id(team_param)
-    today = date.today().strftime("%Y-%m-%d")
+    # Use US/Eastern timezone so late West Coast games (which cross midnight UTC)
+    # are still queried on the correct schedule date.
+    try:
+        from zoneinfo import ZoneInfo
+        today = datetime.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
+    except ImportError:
+        # Fallback: UTC-5 (EST) is conservative enough to cover EDT games too
+        today = (datetime.now(timezone.utc) - timedelta(hours=5)).strftime("%Y-%m-%d")
     schedule_url = "https://statsapi.mlb.com/api/v1/schedule"
 
     # ONLY check today — never look back at old finished games
@@ -679,6 +686,7 @@ def live_game_api():
     game = dates[0]["games"][0]
     game_pk = game["gamePk"]
     status = game["status"]["detailedState"]
+    abstract_state = game["status"].get("abstractGameState", "")
 
     live_data = mlb_session.get(f"https://statsapi.mlb.com/api/v1.1/game/{game_pk}/feed/live").json()
     linescore = live_data["liveData"]["linescore"]
@@ -728,6 +736,7 @@ def live_game_api():
         "away_score": game["teams"]["away"].get("score", 0),
         "home_score": game["teams"]["home"].get("score", 0),
         "status": status,
+        "abstract_state": abstract_state,
         "last_play": last_play,
         "last_play_event": last_play_event,
         "last_play_rbi": last_play_rbi,

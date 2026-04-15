@@ -139,7 +139,10 @@ function ScoringPlays({ summary }) {
 }
 
 function LiveGame({ live, prevGame, nextGame, favoriteTeam, timezone }) {
-  const isLive = live && live.status && (live.status.toLowerCase().includes("in progress") || live.status.toLowerCase().includes("live"))
+  const isLive = live && (
+    live.abstract_state === "Live" ||
+    (live.status && (live.status.toLowerCase().includes("in progress") || live.status.toLowerCase().includes("live")))
+  )
   console.log("DEBUG Live Game:", { live, isLive, status: live?.status })
   const favoriteTeamName = teamsData.find(t => t.id === favoriteTeam)?.name || ""
 
