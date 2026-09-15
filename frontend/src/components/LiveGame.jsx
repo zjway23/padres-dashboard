@@ -1,221 +1,252 @@
-import teamsData from "../data/teams.json"
+import { Badge, Card, Diamond, Empty, Outs, Skeleton } from "./ui"
+import { dayString, gameDay, gameTime, relativeDay } from "../lib/format"
 
-function Diamond({ first, second, third }) {
-  const base = (active) => ({
-    width: 18, height: 18,
-    background: active ? "#ffc425" : "transparent",
-    border: "2px solid #ffc425",
-    transform: "rotate(45deg)",
-    display: "inline-block",
-    margin: 4
-  })
+/** Colour the last play by outcome so a scoring play is obvious at a glance. */
+function lastPlayTone(play) {
+  if (!play) return ""
+  if (play.is_scoring || play.rbi > 0) return " last-play--score"
+  const onBase = ["single", "double", "triple", "home_run", "walk", "hit_by_pitch",
+                  "intent_walk", "error", "field_error", "catcher_interf"]
+  const event = (play.event_type || "").toLowerCase()
+  if (onBase.some(e => event.includes(e))) return " last-play--on-base"
+  return " last-play--out"
+}
+
+function Linescore({ game }) {
+  if (!game?.innings?.length) return null
+  const scheduled = game.scheduled_innings || 9
+  const count = Math.max(scheduled, game.innings.length)
+  const innings = Array.from({ length: count }, (_, i) =>
+    game.innings.find(inn => inn.num === i + 1) || { num: i + 1 })
+
+  const row = (side) => (
+    <tr>
+      <td className="col-name">{game[side].abbreviation}</td>
+      {innings.map(inn => (
+        <td
+          key={inn.num}
+          className={inn.num === game.inning_num && game.is_live ? "inning-current" : ""}
+        >
+          {inn[side] ?? (inn.num <= (game.inning_num || 0) ? 0 : "")}
+        </td>
+      ))}
+      <td className="total">{game.totals?.[side]?.runs ?? game[side].score}</td>
+      <td className="total">{game.totals?.[side]?.hits ?? 0}</td>
+      <td className="total">{game.totals?.[side]?.errors ?? 0}</td>
+    </tr>
+  )
+
   return (
-    <div style={{ textAlign: "center", margin: "10px 0" }}>
-      <div style={{ marginBottom: -8}}><span style={base(second)}></span></div>
-      <div>
-        <span style={base(third)}></span>
-        <span style={{ display: "inline-block", width: 18, margin: 4 }}></span>
-        <span style={base(first)}></span>
+    <div className="table-wrap" style={{ marginTop: 12 }}>
+      <table className="data linescore">
+        <thead>
+          <tr>
+            <th className="col-name" />
+            {innings.map(inn => <th key={inn.num}>{inn.num}</th>)}
+            <th className="total">R</th>
+            <th className="total">H</th>
+            <th className="total">E</th>
+          </tr>
+        </thead>
+        <tbody>
+          {row("away")}
+          {row("home")}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function ScoringPlays({ plays }) {
+  if (!plays?.length) return null
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div className="stat-tile__label" style={{ marginBottom: 6 }}>Scoring plays</div>
+      <div className="scroll-list">
+        {plays.map((play, i) => (
+          <div className="play-item" key={i}>
+            <span className="play-item__inning">{play.inning}</span>
+            <span className="play-item__score">{play.away_score}-{play.home_score}</span>
+            <span style={{ flex: 1 }}>{play.description}</span>
+          </div>
+        ))}
       </div>
     </div>
   )
 }
 
-function formatGameTime(isoString, timezone) {
-  if (!isoString) return ""
-  try {
-    const dt = new Date(isoString)
-    const tz = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
-    const raw = dt.toLocaleTimeString("en-US", {
-      hour: "numeric", minute: "2-digit",
-      timeZoneName: "short",
-      timeZone: tz
-    })
-    return raw
-      .replace(/\bEDT\b|\bEST\b/g, "ET")
-      .replace(/\bCDT\b|\bCST\b/g, "CT")
-      .replace(/\bMDT\b|\bMST\b/g, "MT")
-      .replace(/\bPDT\b|\bPST\b/g, "PT")
-  } catch { return "" }
-}
-
-function formatDate(dateStr) {
-  const d = new Date(dateStr + "T12:00:00")
-  return d.toLocaleDateString("en-US", { weekday: "long", month: "numeric", day: "numeric", year: "numeric" })
-}
-
-function NextGameCard({ nextGame, timezone }) {
-  if (!nextGame) return null
-  const dt = new Date(nextGame.game_datetime)
-  const formatted = dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
-  const timeStr = formatGameTime(nextGame.game_datetime, timezone)
+function ScoreSide({ team, winner, isFavorite }) {
   return (
-    <div style={{
-      marginBottom: 12,
-      padding: "8px 12px 16px",
-      background: "#0d1f2d",
-      borderRadius: 8,
-    }}>
-      <div style={{ color: "#ffc425", fontSize: 13, fontWeight: "bold", marginBottom: 4, letterSpacing: "0.5px" }}>
-        NEXT GAME {nextGame.game_type === "Spring Training" ? "· Spring Training" : ""}
+    <div className={`score-side${winner ? " score-side--winner" : ""}`}>
+      <div className="score-side__abbr" style={isFavorite ? { color: "var(--accent)" } : undefined}>
+        {team.abbreviation}
       </div>
-      <div style={{ fontSize: 13, fontWeight: "bold" }}>
-        {nextGame.away} vs {nextGame.home}
+      <div className="score-side__runs">{team.score}</div>
+      <div className="score-side__name">
+        {team.wins != null ? `${team.wins}-${team.losses}` : team.name}
       </div>
-      <div style={{ color: "#aaa", fontSize: 12, lineHeight: 2.2}}>
-        {formatted} · {timeStr}
-        {nextGame.venue && (
-          <span style={{ color: "#7a9db5", fontSize: 11, display: "block", lineHeight: 1.9 }}>{nextGame.venue}</span>
+    </div>
+  )
+}
+
+function ScoreLine({ game, favoriteTeamId }) {
+  const { away, home } = game
+  const decided = game.is_final || game.is_live
+  const awayWon = decided && away.score > home.score
+  const homeWon = decided && home.score > away.score
+
+  return (
+    <div className="score-line">
+      <ScoreSide team={away} winner={awayWon} isFavorite={away.team_id === favoriteTeamId} />
+      <div className="score-mid">
+        {game.is_live ? (
+          <>
+            <div style={{ color: "var(--accent)", fontWeight: 700, fontSize: 13 }}>
+              {game.inning_state || game.half} {game.inning}
+            </div>
+            <div style={{ margin: "8px 0" }}>
+              <Diamond first={game.first} second={game.second} third={game.third} />
+            </div>
+            <Outs count={game.outs} />
+            <div className="nums" style={{ marginTop: 6, fontSize: 12 }}>
+              {game.balls}-{game.strikes}
+            </div>
+          </>
+        ) : (
+          <div style={{ fontSize: 12, fontWeight: 600 }}>{game.status}</div>
         )}
       </div>
+      <ScoreSide team={home} winner={homeWon} isFavorite={home.team_id === favoriteTeamId} />
     </div>
   )
 }
 
-function PrevGameCard({ prevGame, favoriteTeamName }) {
-  if (!prevGame) return null
-  const awayWon = prevGame.away_score > prevGame.home_score
+function UpcomingStrip({ game, timezone }) {
+  if (!game) return null
   return (
-    <div style={{
-      background: "#0d1f2d", borderRadius: 8,
-      padding: "12px 14px 4px", textAlign: "left", fontSize: 13
-    }}>
-      <p style={{ color: "#ffc425", fontWeight: "bold", marginBottom: 8 }}>
-        PREVIOUS GAME
-      </p>
-      {[
-        { name: prevGame.away, score: prevGame.away_score, won: awayWon },
-        { name: prevGame.home, score: prevGame.home_score, won: !awayWon }
-      ].map((team, i) => {
-        const isFavorite = favoriteTeamName && team.name.includes(favoriteTeamName)
-        return (
-          <div key={i} style={{
-            display: "flex", alignItems: "center", gap: 8,
-            padding: "4px 0",
-            borderBottom: i === 0 ? "1px solid #1a3a4a" : "none"
-          }}>
-            <span style={{ color: team.won ? "#4caf50" : "#f44336", fontWeight: "bold", width: 16 }}>
-              {team.won ? "W" : "L"}
-            </span>
-            <span style={{
-              color: isFavorite ? "var(--color-accent)" : "white",
-              fontWeight: isFavorite ? "bold" : "normal",
-              minWidth: 160
-            }}>
-              {team.name}
-            </span>
-            <span style={{ fontWeight: "bold" }}>{team.score}</span>
-          </div>
-        )
-      })}
-      <p style={{ color: "#aaa", fontSize: 11, marginTop: 8 }}>{formatDate(prevGame.date)}</p>
-    </div>
-  )
-}
-
-function ScoringPlays({ summary }) {
-  if (!summary || summary.length === 0) return null
-  return (
-    <div style={{ marginTop: 12, textAlign: "left" }}>
-      <p style={{ color: "#ffc425", fontWeight: "bold", fontSize: 13, marginTop: 5 }}>
-        Scoring Plays
-      </p>
-      {summary.map((play, i) => (
-        <div key={i} style={{
-          fontSize: 12, padding: "6px 0",
-          borderBottom: "1px solid #0d1f2d", color: "#ccc"
-        }}>
-          <span style={{ color: "#ffc425", fontWeight: "bold", marginRight: 8, fontSize: 11 }}>
-            {play.inning}
-          </span>
-          <span style={{ marginRight: 8, fontWeight: "bold", color: "white" }}>
-            {play.away_score}-{play.home_score}
-          </span>
-          {play.description}
+    <div className="game-strip">
+      <span className="game-strip__tag">Next</span>
+      <div className="game-strip__body">
+        <div style={{ fontWeight: 600 }}>
+          {game.is_home ? "vs" : "@"} {game.opponent}
         </div>
-      ))}
-    </div>
-  )
-}
-
-function LiveGame({ live, prevGame, nextGame, favoriteTeam, timezone }) {
-  const isLive = live && (
-    live.abstract_state === "Live" ||
-    (live.status && (live.status.toLowerCase().includes("in progress") || live.status.toLowerCase().includes("live")))
-  )
-  console.log("DEBUG Live Game:", { live, isLive, status: live?.status })
-  const favoriteTeamName = teamsData.find(t => t.id === favoriteTeam)?.name || ""
-
-  const getLastPlayColor = () => {
-    if (!live?.last_play_event) return "transparent"
-    const event = live.last_play_event.toLowerCase()
-    if (live.last_play_scoring || live.last_play_rbi > 0) return "rgba(33, 150, 243, 0.2)"
-    const onBase = ["single", "double", "triple", "home_run", "walk", "hit_by_pitch", "intent_walk", "error", "field_error", "catcher_interf"]
-    if (onBase.some(e => event.includes(e))) return "rgba(76, 175, 80, 0.2)"
-    return "rgba(244, 67, 54, 0.2)"
-  }
-
-  // ── MODE 1: GAME IN PROGRESS ────────────────────────────────────────────────
-  if (isLive) {
-    return (
-      <div className="game-card" style={{ display: "flex", flexDirection: "column" }}>
-
-        {/* Header: centered title, LIVE badge pinned top-right */}
-        <div style={{ position: "relative", textAlign: "center", marginBottom: 4 }}>
-          <h2 style={{ margin: 0 }}>Today's Game</h2>
-          <span style={{
-            position: "absolute", top: 0, right: 0,
-            background: "#f44336", color: "white",
-            fontSize: 8, fontWeight: "bold",
-            borderRadius: 3, padding: "2px 5px",
-            letterSpacing: 0.8, lineHeight: 1.4
-          }}>● LIVE</span>
-        </div>
-
-        <p className="matchup" style={{ textAlign: "center" }}>{live.away} @ {live.home}</p>
-        <div className="score" style={{ textAlign: "center" }}>{live.away_score} - {live.home_score}</div>
-        <p style={{ color: "#ffc425", marginTop: 12, fontWeight: "bold", textAlign: "center" }}>
-          {live.half} {live.inning} · {live.outs} Out{live.outs !== 1 ? "s" : ""}
-        </p>
-        <Diamond first={live.first} second={live.second} third={live.third} />
-        <p style={{ fontSize: 13, color: "#aaa", marginTop: 6, textAlign: "center" }}>
-          Count: {live.balls}-{live.strikes}
-        </p>
-        <div style={{ marginTop: 12, fontSize: 13, textAlign: "center" }}>
-          <p><strong>Batting:</strong> {live.batter}</p>
-          <p><strong>Pitching:</strong> {live.pitcher}</p>
-        </div>
-        <div style={{
-          marginTop: 16, background: getLastPlayColor(),
-          borderRadius: 8, padding: "10px 14px",
-          fontSize: 13, color: "#ccc", textAlign: "left",
-          transition: "background 0.5s ease"
-        }}>
-          <p style={{ color: "#ffc425", fontWeight: "bold", marginBottom: 4 }}>Last Play</p>
-          <p>{live.last_play}</p>
-        </div>
-        <div style={{ marginTop: 16, maxHeight: 384, overflowY: "auto" }}>
-          {live?.scoring_summary?.length > 0 && (
-            <ScoringPlays summary={live.scoring_summary} />
-          )}
-        </div>
-        <div style={{ marginTop: 16 }}>
-          <PrevGameCard prevGame={prevGame} favoriteTeamName={favoriteTeamName} />
+        <div className="game-strip__meta">
+          {relativeDay(game.date)} · {gameTime(game.game_datetime, timezone)}
+          {game.venue ? ` · ${game.venue}` : ""}
         </div>
       </div>
-    )
-  }
-
-  // ── MODE 2: NO GAME / FINAL ─────────────────────────────────────────────────
-  return (
-    <div className="game-card" style={{ display: "flex", flexDirection: "column" }}>
-      <NextGameCard nextGame={nextGame} timezone={timezone} />
-      <PrevGameCard prevGame={prevGame} favoriteTeamName={favoriteTeamName} />
-      {prevGame?.scoring_summary?.length > 0 && (
-        <ScoringPlays summary={prevGame.scoring_summary} />
+      {game.probable_pitcher && (
+        <div style={{ textAlign: "right", minWidth: 0 }}>
+          <div className="stat-tile__label">Probable</div>
+          <div style={{ fontSize: 12.5 }}>{game.probable_pitcher}</div>
+        </div>
       )}
     </div>
   )
 }
 
-export default LiveGame
+function PreviousStrip({ game, favoriteTeamId }) {
+  if (!game) return null
+  const us = game.home.team_id === favoriteTeamId ? game.home : game.away
+  const them = game.home.team_id === favoriteTeamId ? game.away : game.home
+  const won = us.score > them.score
+  return (
+    <div className="game-strip">
+      <span className="game-strip__tag">Last</span>
+      <span className={`result-badge result-badge--${won ? "w" : "l"}`}>{won ? "W" : "L"}</span>
+      <div className="game-strip__body">
+        <div style={{ fontWeight: 600 }} className="nums">
+          {us.score}-{them.score}{" "}
+          <span style={{ fontWeight: 400, color: "var(--text-secondary)" }}>
+            {game.home.team_id === favoriteTeamId ? "vs" : "@"} {them.name}
+          </span>
+        </div>
+        <div className="game-strip__meta">{dayString(game.date)}</div>
+      </div>
+    </div>
+  )
+}
+
+export default function LiveGame({ live, previous, next, favoriteTeamId, timezone, loading }) {
+  if (loading && !live && !previous) {
+    return <Card title="Today"><Skeleton rows={5} /></Card>
+  }
+
+  const hasGameToday = Boolean(live)
+  const showLiveDetail = live && (live.is_live || live.is_final)
+
+  return (
+    <Card
+      title={hasGameToday ? "Today's game" : "Up next"}
+      action={live?.is_live
+        ? <Badge variant="live">● LIVE</Badge>
+        : live?.is_final
+          ? <Badge variant="muted">Final</Badge>
+          : null}
+    >
+      {hasGameToday ? (
+        <>
+          <div className="game-strip__meta" style={{ marginBottom: 4, textAlign: "center" }}>
+            {live.venue}
+            {live.doubleheader_game > 1 ? ` · Game ${live.doubleheader_game}` : ""}
+            {!live.is_live && !live.is_final && live.game_datetime
+              ? ` · ${gameDay(live.game_datetime, timezone)} ${gameTime(live.game_datetime, timezone)}`
+              : ""}
+          </div>
+
+          <ScoreLine game={live} favoriteTeamId={favoriteTeamId} />
+
+          {live.is_live && (
+            <div className="matchup-row">
+              <div className="matchup-cell">
+                <div className="matchup-cell__label">At bat</div>
+                <div className="matchup-cell__name">{live.batter || "–"}</div>
+              </div>
+              <div className="matchup-cell">
+                <div className="matchup-cell__label">Pitching</div>
+                <div className="matchup-cell__name">{live.pitcher || "–"}</div>
+              </div>
+            </div>
+          )}
+
+          {!live.is_live && !live.is_final && (live.away.probable_pitcher || live.home.probable_pitcher) && (
+            <div className="matchup-row">
+              <div className="matchup-cell">
+                <div className="matchup-cell__label">{live.away.abbreviation} probable</div>
+                <div className="matchup-cell__name">{live.away.probable_pitcher || "TBD"}</div>
+              </div>
+              <div className="matchup-cell">
+                <div className="matchup-cell__label">{live.home.abbreviation} probable</div>
+                <div className="matchup-cell__name">{live.home.probable_pitcher || "TBD"}</div>
+              </div>
+            </div>
+          )}
+
+          {showLiveDetail && <Linescore game={live} />}
+
+          {live.last_play && (
+            <div className={`last-play${lastPlayTone(live.last_play)}`}>
+              <div className="last-play__label">
+                Last play {live.last_play.inning ? `· ${live.last_play.inning}` : ""}
+              </div>
+              <div>{live.last_play.description}</div>
+            </div>
+          )}
+
+          <ScoringPlays plays={live.scoring_summary} />
+        </>
+      ) : (
+        <Empty>No game scheduled today.</Empty>
+      )}
+
+      <div style={{ marginTop: 14 }}>
+        {(!hasGameToday || live.is_final) && <UpcomingStrip game={next} timezone={timezone} />}
+        {/* Once today's game is final it IS the previous game - showing both
+            would list the same result twice. */}
+        {previous && previous.game_pk !== live?.game_pk && (
+          <PreviousStrip game={previous} favoriteTeamId={favoriteTeamId} />
+        )}
+      </div>
+    </Card>
+  )
+}

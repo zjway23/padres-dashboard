@@ -1,119 +1,84 @@
+import { useEffect } from "react"
 import teams from "../data/teams.json"
+import { readableOn } from "../lib/theme"
 
 const DIVISIONS = ["NL West", "NL Central", "NL East", "AL West", "AL Central", "AL East"]
 
 const TIMEZONES = [
-  { label: "PT", value: "America/Los_Angeles" },
-  { label: "MT", value: "America/Denver" },
-  { label: "CT", value: "America/Chicago" },
-  { label: "ET", value: "America/New_York" },
+  { label: "Pacific", value: "America/Los_Angeles" },
+  { label: "Mountain", value: "America/Denver" },
+  { label: "Central", value: "America/Chicago" },
+  { label: "Eastern", value: "America/New_York" },
 ]
 
 const TABS = [
   { label: "Dashboard", value: "dashboard" },
+  { label: "Team", value: "team" },
   { label: "Favorites", value: "favorites" },
   { label: "Bullpen", value: "bullpen" },
-  { label: "Playoff Push", value: "wildcard" },
+  { label: "Playoff Push", value: "playoff" },
 ]
 
-function Settings({ favoriteTeam, onSave, onClose, onLogout, isFirstSetup, timezone, onTimezoneChange, defaultTab, onDefaultTabChange }) {
-  const currentTeam = teams.find(t => t.id === favoriteTeam) || teams[0]
+function ChipRow({ options, value, onChange, renderChip }) {
+  return (
+    <div className="chip-row">
+      {options.map(option => (
+        renderChip
+          ? renderChip(option, option.value === value)
+          : (
+            <button
+              key={option.value}
+              className={`chip${option.value === value ? " chip--on" : ""}`}
+              onClick={() => onChange(option.value)}
+            >
+              {option.label}
+            </button>
+          )
+      ))}
+    </div>
+  )
+}
+
+export default function Settings({
+  favoriteTeam, onTeamChange, onClose, onLogout,
+  timezone, onTimezoneChange, defaultTab, onDefaultTabChange, user,
+}) {
+  // Escape closes the dialog, matching the backdrop click.
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose() }
+    document.addEventListener("keydown", onKey)
+    return () => document.removeEventListener("keydown", onKey)
+  }, [onClose])
 
   return (
     <>
-      <div
-        style={{
-          position: "fixed",
-          top: 0, left: 0,
-          width: "100vw", height: "100vh",
-          background: "rgba(0,0,0,0.5)",
-          zIndex: 199
-        }}
-        onClick={onClose}
-      />
-      <div style={{
-        position: "fixed",
-        top: "50%", left: "50%",
-        transform: "translate(-50%, -50%)",
-        background: "#1a3a4a",
-        borderRadius: 16,
-        padding: 28,
-        width: "min(480px, 90vw)",
-        maxHeight: "80vh",
-        overflowY: "auto",
-        zIndex: 200,
-        boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
-        border: `2px solid ${currentTeam.colors.accent}`
-      }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-          {isFirstSetup ? (
-            <h2 style={{ color: "var(--color-accent)", margin: 0, fontSize: 20 }}>
-              🏟️ Choose Your Team
-            </h2>
-          ) : (
-            <button
-              onClick={onLogout}
-              style={{
-                background: "transparent",
-                border: "1.5px solid #aaa",
-                color: "#aaa",
-                borderRadius: 8,
-                padding: "4px 10px",
-                fontSize: 12,
-                cursor: "pointer",
-                marginTop: -5.5
-              }}
-            >
-              Log out
-            </button>
-          )}
-          <button
-            onClick={onClose}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "#aaa",
-              fontSize: 20,
-              cursor: "pointer",
-              lineHeight: 1,
-              marginTop: -8
-            }}
-          >✕</button>
+      <div className="modal-backdrop" onClick={onClose} />
+      <div className="modal" role="dialog" aria-modal="true" aria-label="Settings">
+        <div className="modal__head">
+          <h2 style={{ fontSize: 17 }}>Settings</h2>
+          <button className="btn btn--icon btn--ghost" onClick={onClose} aria-label="Close settings">✕</button>
         </div>
 
-        {!isFirstSetup && (
-          <p style={{ color: "#aaa", fontSize: 13, marginBottom: 20 }}>
-            Current team:{" "}
-            <span style={{ color: "var(--color-accent)", fontWeight: "bold" }}>
-              {currentTeam.name}
-            </span>
-          </p>
-        )}
-
+        <div className="field-label">Favorite team</div>
         {DIVISIONS.map(division => (
-          <div key={division} style={{ marginBottom: 16 }}>
-            <p style={{ color: "#aaa", fontSize: 11, fontWeight: "bold", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>
-              {division}
-            </p>
-            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8 }}>
+          <div key={division} style={{ marginBottom: 12 }}>
+            <div className="muted" style={{ fontSize: 11, marginBottom: 6 }}>{division}</div>
+            <div className="chip-row" style={{ marginBottom: 0 }}>
               {teams.filter(t => t.division === division).map(team => {
-                const isSelected = team.id === favoriteTeam
+                const selected = team.id === favoriteTeam
+                // Tint each chip with the team's own readable accent so the
+                // picker is scannable by color, not just by abbreviation.
+                const color = readableOn(team.colors.accent)
                 return (
                   <button
                     key={team.id}
-                    onClick={() => onSave(team.id)}
+                    className={`chip team-chip${selected ? " chip--on" : ""}`}
                     style={{
-                      background: isSelected ? team.colors.accent : "transparent",
-                      border: `1.5px solid ${isSelected ? team.colors.accent : "#444"}`,
-                      color: isSelected ? "#0d1f2d" : "white",
-                      borderRadius: 8,
-                      padding: "6px 12px",
-                      fontSize: 13,
-                      fontWeight: isSelected ? "bold" : "normal",
-                      cursor: "pointer",
-                      transition: "all 0.15s ease",
-                      whiteSpace: "nowrap"
+                      "--chip-color": color,
+                      ...(selected ? { background: color, borderColor: color, color: "#0a1621" } : {}),
                     }}
+                    onClick={() => onTeamChange(team.id)}
+                    title={team.name}
                   >
                     {team.abbreviation}
                   </button>
@@ -123,106 +88,29 @@ function Settings({ favoriteTeam, onSave, onClose, onLogout, isFirstSetup, timez
           </div>
         ))}
 
-        {/* Divider */}
-        <div style={{
-          height: 1,
-          background: "#444",
-          margin: "20px 0"
-        }} />
+        <div style={{ height: 1, background: "var(--border)", margin: "18px 0" }} />
 
-        {/* Timezone Selection */}
-        {!isFirstSetup && (
-          <div style={{ marginBottom: 20 }}>
-            <p style={{ color: "#aaa", fontSize: 11, fontWeight: "bold", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>
-              Timezone
-            </p>
-            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8 }}>
-              {TIMEZONES.map(tz => {
-                const isSelected = timezone === tz.value
-                return (
-                  <button
-                    key={tz.value}
-                    onClick={() => onTimezoneChange && onTimezoneChange(tz.value)}
-                    style={{
-                      background: isSelected ? "var(--color-accent)" : "transparent",
-                      border: `1.5px solid ${isSelected ? "var(--color-accent)" : "#444"}`,
-                      color: isSelected ? "#0d1f2d" : "white",
-                      borderRadius: 8,
-                      padding: "6px 12px",
-                      fontSize: 13,
-                      fontWeight: isSelected ? "bold" : "normal",
-                      cursor: "pointer",
-                      transition: "all 0.15s ease",
-                      whiteSpace: "nowrap"
-                    }}
-                  >
-                    {tz.label}
-                  </button>
-                )
-              })}
+        <div className="field-label">Time zone</div>
+        <ChipRow options={TIMEZONES} value={timezone} onChange={onTimezoneChange} />
+
+        <div className="field-label">Start on tab</div>
+        <ChipRow options={TABS} value={defaultTab} onChange={onDefaultTabChange} />
+
+        <div style={{ height: 1, background: "var(--border)", margin: "18px 0" }} />
+
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+          <div style={{ minWidth: 0 }}>
+            <div className="muted" style={{ fontSize: 11 }}>Signed in as</div>
+            <div style={{ fontSize: 13, overflow: "hidden", textOverflow: "ellipsis" }}>
+              {user?.email || user?.displayName || "—"}
             </div>
           </div>
-        )}
-
-        {/* Default Tab Selection */}
-        {!isFirstSetup && (
-          <div style={{ marginBottom: 20 }}>
-            <p style={{ color: "#aaa", fontSize: 11, fontWeight: "bold", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>
-              Default Tab
-            </p>
-            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8 }}>
-              {TABS.map(tab => {
-                const isSelected = defaultTab === tab.value
-                return (
-                  <button
-                    key={tab.value}
-                    onClick={() => onDefaultTabChange && onDefaultTabChange(tab.value)}
-                    style={{
-                      background: isSelected ? "var(--color-accent)" : "transparent",
-                      border: `1.5px solid ${isSelected ? "var(--color-accent)" : "#444"}`,
-                      color: isSelected ? "#0d1f2d" : "white",
-                      borderRadius: 8,
-                      padding: "6px 12px",
-                      fontSize: 13,
-                      fontWeight: isSelected ? "bold" : "normal",
-                      cursor: "pointer",
-                      transition: "all 0.15s ease",
-                      whiteSpace: "nowrap"
-                    }}
-                  >
-                    {tab.label}
-                  </button>
-                )
-              })}
-            </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn" onClick={onLogout}>Log out</button>
+            <button className="btn btn--accent" onClick={onClose}>Done</button>
           </div>
-        )}
-
-        {/* Done button */}
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
-        <button
-          onClick={onClose}
-          style={{
-            background: "transparent",
-            border: "1.5px solid #444",
-            color: "white",
-            borderRadius: 8,
-            padding: "6px 12px",
-            fontSize: 13,
-            fontWeight: "normal",
-            cursor: "pointer",
-            transition: "all 0.15s ease",
-            whiteSpace: "nowrap",
-            marginBottom: -10,
-            marginTop: 5
-          }}
-        >
-          Done
-        </button>
         </div>
       </div>
     </>
   )
 }
-
-export default Settings
