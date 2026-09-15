@@ -26,6 +26,16 @@ const TABS = [
   { key: "playoff", label: "Playoff Push" },
 ]
 
+// The Playoff Push tab used to be keyed "wildcard". Saved preferences still
+// carry the old value, and an unrecognised key would render an empty page.
+const LEGACY_TABS = { wildcard: "playoff", roster: "team" }
+
+function normalizeTab(value) {
+  const key = LEGACY_TABS[value] || value
+  return TABS.some(t => t.key === key) ? key : "dashboard"
+}
+
+
 // Poll hard during a live game, gently otherwise.
 const POLL_LIVE = 10000
 const POLL_IDLE = 120000
@@ -37,7 +47,7 @@ export default function App() {
   const [favoriteTeam, setFavoriteTeam] = useStoredState("favoriteTeam", "padres")
   const [timezone, setTimezone] = useStoredState("timezone", "America/Los_Angeles")
   const [defaultTab, setDefaultTab] = useStoredState("defaultTab", "dashboard")
-  const [activeTab, setActiveTab] = useState(defaultTab)
+  const [activeTab, setActiveTab] = useState(() => normalizeTab(defaultTab))
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   const team = getTeam(favoriteTeam)
@@ -52,7 +62,11 @@ export default function App() {
         const prefs = await api("/api/preferences", { params: { uid: firebaseUser.uid } })
         if (prefs.favorite_team) setFavoriteTeam(prefs.favorite_team)
         if (prefs.timezone) setTimezone(prefs.timezone)
-        if (prefs.default_tab) { setDefaultTab(prefs.default_tab); setActiveTab(prefs.default_tab) }
+        if (prefs.default_tab) {
+          const tab = normalizeTab(prefs.default_tab)
+          setDefaultTab(tab)
+          setActiveTab(tab)
+        }
       } catch {
         // Preferences are a convenience; local values already cover this session.
       }

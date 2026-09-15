@@ -143,6 +143,83 @@ def test_exactly_three_wildcards():
     assert sorted(t["seed"] for t in teams if t["seed"]) == [1, 2, 3, 4, 5, 6]
 
 
+# ─── Magic numbers ────────────────────────────────────────────────────────────
+
+def seeded_league():
+    """Six playoff teams plus chasers, mirroring a real late-season NL."""
+    teams = [
+        make_team("Leader", 93, 57, "NL Central"),
+        make_team("Second", 91, 59, "NL West"),
+        make_team("Third", 88, 62, "NL East"),
+        make_team("WC1", 83, 67, "NL East"),
+        make_team("WC2", 83, 67, "NL Central"),
+        make_team("Bubble", 81, 68, "NL West"),
+        make_team("Chaser", 79, 71, "NL West"),
+        make_team("Distant", 70, 80, "NL Central"),
+    ]
+    for t in teams:
+        t["games_played"] = t["wins"] + t["losses"]
+        t["games_remaining"] = 162 - t["games_played"]
+        t["clinched"] = False
+    stats._assign_seeds(teams)
+    stats._assign_playoff_magic(teams)
+    return {t["name"]: t for t in teams}
+
+
+def test_playoff_magic_matches_hand_calculation():
+    """Bubble 81-68 (13 left) vs Chaser 79-71 (12 left, ceiling 91): 91-81+1 = 11."""
+    league = seeded_league()
+    assert league["Bubble"]["playoff_magic"] == 11
+
+
+def test_wildcard_team_gets_a_magic_number():
+    """The API only supplies magicNumber for division leaders, so a wild-card
+    team previously showed nothing at all."""
+    league = seeded_league()
+    for name in ("WC1", "WC2", "Bubble"):
+        assert league[name]["playoff_magic"] is not None
+        assert league[name]["playoff_magic"] > 0
+
+
+def test_magic_number_never_exceeds_games_left_plus_one():
+    league = seeded_league()
+    for team in league.values():
+        if team["playoff_magic"]:
+            assert team["playoff_magic"] <= team["games_remaining"] + 1
+
+
+def test_clinched_team_reports_zero():
+    league = seeded_league()
+    leader = league["Leader"]
+    leader["clinched"] = True
+    stats._assign_playoff_magic(list(league.values()))
+    assert leader["playoff_magic"] == 0
+
+
+def test_teams_outside_get_tragic_not_magic():
+    league = seeded_league()
+    for name in ("Chaser", "Distant"):
+        assert league[name]["playoff_magic"] is None
+        assert league[name]["playoff_tragic"] is not None
+
+
+def test_division_magic_only_for_leaders():
+    league = seeded_league()
+    # "Second" (91-59) leads NL West over Bubble (81-68, ceiling 94): 94-91+1 = 4.
+    assert league["Second"]["division_magic"] == 4
+    assert league["Bubble"]["division_magic"] is None
+
+
+@live
+def test_real_standings_expose_magic_numbers():
+    snapshot = stats.standings_snapshot()
+    for team in snapshot["teams"]:
+        assert "playoff_magic" in team
+        assert "division_magic" in team
+        if team["seed"]:
+            assert team["playoff_magic"] is not None
+
+
 # ─── Stat coercion ────────────────────────────────────────────────────────────
 
 @pytest.mark.parametrize("raw,expected", [

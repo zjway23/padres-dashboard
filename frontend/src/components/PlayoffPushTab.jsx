@@ -177,6 +177,62 @@ function Bracket({ teams, favoriteTeamId }) {
   )
 }
 
+/**
+ * Clinch status, playoff berth first.
+ *
+ * Making the postseason is the number that matters, so it leads. Once the
+ * berth is locked up the tile switches to the division race, and only shows
+ * "Clinched" outright when there is nothing left to chase.
+ */
+function ClinchTile({ team }) {
+  const berth = team.playoff_magic
+  const division = team.division_magic
+
+  if (berth === 0) {
+    if (division === 0) {
+      return <StatTile label="Status" value="Division ✓" hero title="Division won" />
+    }
+    if (division != null) {
+      return <StatTile label="Div magic #" value={division} hero
+                       title="Playoff berth clinched — games needed to win the division" />
+    }
+    return <StatTile label="Status" value="Clinched ✓" hero title="Playoff berth clinched" />
+  }
+
+  if (berth != null) {
+    return <StatTile label="Magic #" value={berth} hero
+                     title="Any combination of wins by this team and losses by the closest team outside the picture that clinches a playoff berth" />
+  }
+
+  if (team.playoff_tragic != null) {
+    return <StatTile label="Elim. number" value={team.playoff_tragic}
+                     title="Losses (or wins by the last team in) that would end elimination hopes" />
+  }
+  return <StatTile label="Magic #" value={DASH} />
+}
+
+function ClinchNote({ team }) {
+  const berth = team.playoff_magic
+  let text = null
+
+  if (berth === 0 && team.division_magic === 0) {
+    text = "Division won — locked into a top-three seed."
+  } else if (berth === 0 && team.division_magic != null) {
+    text = `Playoff berth clinched. Any combination of ${team.division_magic} wins or losses by the closest divisional rival wins the division.`
+  } else if (berth === 0) {
+    text = "Playoff berth clinched."
+  } else if (berth != null) {
+    const winOut = berth <= team.games_remaining
+    text = `Any combination of ${berth} wins or losses by the closest team outside the picture clinches a playoff berth`
+      + (winOut ? ` — winning out (${team.games_remaining}) would do it.` : ".")
+  } else if (team.playoff_tragic != null) {
+    text = `Outside the picture: ${team.playoff_tragic} more losses (or wins by the last team in) would end it.`
+  }
+
+  if (!text) return null
+  return <p className="muted" style={{ fontSize: 12, marginBottom: 14 }}>{text}</p>
+}
+
 export default function PlayoffPushTab({ playoff, favoriteTeamId, favoriteTeam, loading }) {
   const [view, setView] = useState("division")
   const [schedules, setSchedules] = useState({})
@@ -249,8 +305,8 @@ export default function PlayoffPushTab({ playoff, favoriteTeamId, favoriteTeam, 
       <Card
         title="Playoff push"
         action={
-          me.clinched
-            ? <Badge variant="solid">Clinched ✓</Badge>
+          me.playoff_magic === 0
+            ? <Badge variant="solid">{me.division_magic === 0 ? "Division ✓" : "Clinched ✓"}</Badge>
             : <Badge>{me.seed ? `Seed ${me.seed}` : "Outside the picture"}</Badge>
         }
       >
@@ -262,8 +318,10 @@ export default function PlayoffPushTab({ playoff, favoriteTeamId, favoriteTeam, 
           <StatTile label="WC GB" value={me.wc_gb} />
           <StatTile label="Streak" value={me.streak} />
           <StatTile label="Run diff" value={`${me.run_diff > 0 ? "+" : ""}${me.run_diff}`} />
-          <StatTile label="Magic #" value={me.magic_number} title="Magic number to clinch" />
+          <ClinchTile team={me} />
         </div>
+
+        <ClinchNote team={me} />
 
         <div className="tabs" style={{ maxWidth: 280 }}>
           <button className={`tab${view === "division" ? " tab--active" : ""}`}

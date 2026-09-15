@@ -341,7 +341,9 @@ def standings_snapshot():
             })
 
     for league in ("NL", "AL"):
-        _assign_seeds([t for t in teams if t["league"] == league])
+        league_teams = [t for t in teams if t["league"] == league]
+        _assign_seeds(league_teams)
+        _assign_playoff_magic(league_teams)
 
     return {
         "season": season,
@@ -388,6 +390,71 @@ def _assign_seeds(league_teams):
     for t in rest[3:]:
         t["seed"] = None
         t["category"] = "eliminated"
+
+
+def _assign_playoff_magic(league_teams):
+    """Magic / elimination numbers for a *playoff berth*.
+
+    The API's own `magicNumber` only covers winning a division, and it is
+    absent entirely for teams that aren't leading one - so a wild-card team
+    showed no magic number at all, even when a clinch was well within reach.
+
+    Measured against the closest team on the other side of the playoff cut:
+      - holding a seed  -> `playoff_magic`, combined own wins + chaser losses
+                           needed to guarantee the berth
+      - outside the cut -> `playoff_tragic`, the same count that eliminates them
+
+    Using each club's remaining games (rather than assuming 162) keeps this
+    correct when schedules are uneven from postponements.
+    """
+    seeded = sorted([t for t in league_teams if t["seed"]], key=lambda t: t["seed"])
+    outside = sorted([t for t in league_teams if not t["seed"]],
+                     key=lambda t: (-_pct(t), -t["wins"]))
+
+    bubble = seeded[-1] if seeded else None          # last team in
+    chaser = outside[0] if outside else None         # best team out
+
+    for team in league_teams:
+        team["playoff_magic"] = None
+        team["playoff_tragic"] = None
+
+        if team["seed"] and chaser:
+            # Beat the ceiling of the best team currently outside.
+            ceiling = chaser["wins"] + chaser["games_remaining"]
+            magic = ceiling - team["wins"] + 1
+            if team["clinched"] or magic <= 0:
+                team["playoff_magic"] = 0            # already in
+            else:
+                team["playoff_magic"] = min(magic, team["games_remaining"] + 1)
+        elif not team["seed"] and bubble:
+            # Their own ceiling has to clear the last team in.
+            ceiling = team["wins"] + team["games_remaining"]
+            tragic = ceiling - bubble["wins"] + 1
+            team["playoff_tragic"] = max(0, tragic)
+
+    _assign_division_magic(league_teams)
+
+
+def _assign_division_magic(league_teams):
+    """Magic number to win the division, measured against the nearest rival.
+
+    Computed rather than taken from the API so it is available for every team,
+    including one that has clinched a berth but is still chasing the division.
+    """
+    by_division = {}
+    for team in league_teams:
+        by_division.setdefault(team["division"], []).append(team)
+
+    for teams in by_division.values():
+        ranked = sorted(teams, key=lambda t: (-_pct(t), -t["wins"]))
+        leader = ranked[0]
+        runner_up = ranked[1] if len(ranked) > 1 else None
+        for team in teams:
+            team["division_magic"] = None
+            if team is leader and runner_up:
+                ceiling = runner_up["wins"] + runner_up["games_remaining"]
+                magic = ceiling - team["wins"] + 1
+                team["division_magic"] = 0 if magic <= 0 else min(magic, team["games_remaining"] + 1)
 
 
 def division_standings(team_id):
