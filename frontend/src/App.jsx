@@ -1,601 +1,260 @@
-import { useState, useEffect } from "react"
-import { auth } from "./firebase"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { onAuthStateChanged, signOut } from "firebase/auth"
+import { auth } from "./firebase"
+
 import Login from "./components/Login"
-import LiveGame from "./components/LiveGame"
-import RosterTable from "./components/RosterTable"
-import Standings from "./components/Standings"
-import FavoritesTab from "./components/FavoritesTab"
 import Settings from "./components/Settings"
+import SearchPanel from "./components/SearchPanel"
+import LiveGame from "./components/LiveGame"
+import Standings, { DivisionTable } from "./components/Standings"
+import RosterTable from "./components/RosterTable"
+import FavoritesTab from "./components/FavoritesTab"
+import Bullpen from "./components/Bullpen"
 import PlayoffPushTab from "./components/PlayoffPushTab"
+import { Card, ErrorNote, Skeleton } from "./components/ui"
+
+import { useApi, useStoredState } from "./hooks/useApi"
+import { api } from "./lib/api"
+import { applyTeamTheme, getTeam } from "./lib/theme"
 import "./App.css"
-import teamsData from "./data/teams.json"
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:5001"
+const TABS = [
+  { key: "dashboard", label: "Dashboard" },
+  { key: "team", label: "Team" },
+  { key: "favorites", label: "Favorites" },
+  { key: "bullpen", label: "Bullpen" },
+  { key: "playoff", label: "Playoff Push" },
+]
 
-/* const API = import.meta.env.VITE_API_URL || "http://localhost:5001" */
-/* const API = import.meta.env.VITE_API_URL || "https://padres-dashboard.onrender.com" */
+// Poll hard during a live game, gently otherwise.
+const POLL_LIVE = 10000
+const POLL_IDLE = 120000
 
-function applyTeamTheme(teamId) {
-  const team = teamsData.find(t => t.id === teamId) || teamsData[0]
-  const root = document.documentElement
-  const accentColor = teamId === "padres" ? team.colors.accent : "#AAAAAA"
-  root.style.setProperty("--color-accent", accentColor)
-  root.style.setProperty("--color-dark", team.colors.primary)
-  const hex = accentColor.replace("#", "")
-  const r = parseInt(hex.slice(0, 2), 16)
-  const g = parseInt(hex.slice(2, 4), 16)
-  const b = parseInt(hex.slice(4, 6), 16)
-  root.style.setProperty("--color-highlight", `rgba(${r}, ${g}, ${b}, 0.10)`)
-}
-
-function App() {
-  const [live, setLive] = useState(null)
-  const [players, setPlayers] = useState([])
-  const [standings, setStandings] = useState([])
-  const [standingsDivision, setStandingsDivision] = useState("")
-  const [prevGame, setPrevGame] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState(localStorage.getItem("defaultTab") || "dashboard")
-  const [searchOpen, setSearchOpen] = useState(false)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [searchResults, setSearchResults] = useState([])
-  const [searching, setSearching] = useState(false)
-  const [playerGames, setPlayerGames] = useState({})
-  const [wildcard, setWildcard] = useState([])
-  const [playoffData, setPlayoffData] = useState([])
-  const [nextGame, setNextGame] = useState(null)
+export default function App() {
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
-  const [favoritesLoaded, setFavoritesLoaded] = useState(false)
-  const [pitchers, setPitchers] = useState([])
-  const [pitchersLoading, setPitchersLoading] = useState(true)
-  const [favoriteTeam, setFavoriteTeam] = useState(() => {
-    const stored = localStorage.getItem("favoriteTeam")
-    if (!stored) {
-      localStorage.setItem("favoriteTeam", "padres")
-      return "padres"
-    }
-    return stored
-  })
+
+  const [favoriteTeam, setFavoriteTeam] = useStoredState("favoriteTeam", "padres")
+  const [timezone, setTimezone] = useStoredState("timezone", "America/Los_Angeles")
+  const [defaultTab, setDefaultTab] = useStoredState("defaultTab", "dashboard")
+  const [activeTab, setActiveTab] = useState(defaultTab)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [timezone, setTimezone] = useState(() => localStorage.getItem("timezone") || "America/New_York")
-  const [defaultTab, setDefaultTab] = useState(localStorage.getItem("defaultTab") || "dashboard")
-  const [prefsLoading, setPrefsLoading] = useState(true)
 
-  useEffect(() => {
-    applyTeamTheme(favoriteTeam)
-  }, [favoriteTeam])
+  const team = getTeam(favoriteTeam)
 
-  const handleTimezoneChange = (tz) => {
-    localStorage.setItem("timezone", tz)
-    setTimezone(tz)
-    if (user) {
-      fetch(`${API}/api/preferences`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uid: user.uid, timezone: tz })
-      }).catch(err => console.error("Save timezone preference error:", err))
+  useEffect(() => { applyTeamTheme(favoriteTeam) }, [favoriteTeam])
+
+  // ── Auth & stored preferences ──────────────────────────────────────────────
+  useEffect(() => onAuthStateChanged(auth, async (firebaseUser) => {
+    setUser(firebaseUser)
+    if (firebaseUser) {
+      try {
+        const prefs = await api("/api/preferences", { params: { uid: firebaseUser.uid } })
+        if (prefs.favorite_team) setFavoriteTeam(prefs.favorite_team)
+        if (prefs.timezone) setTimezone(prefs.timezone)
+        if (prefs.default_tab) { setDefaultTab(prefs.default_tab); setActiveTab(prefs.default_tab) }
+      } catch {
+        // Preferences are a convenience; local values already cover this session.
+      }
     }
-  }
+    setAuthLoading(false)
+  }), [setFavoriteTeam, setTimezone, setDefaultTab])
 
+  const savePreference = useCallback((patch) => {
+    if (!user) return
+    api("/api/preferences", { method: "POST", body: { uid: user.uid, ...patch } })
+      .catch(() => { /* stored locally regardless */ })
+  }, [user])
+
+  // ── Data ───────────────────────────────────────────────────────────────────
+  const dashboard = useApi("/api/dashboard", {
+    params: { team: favoriteTeam },
+    keepPrevious: true,
+  })
+
+  const isLive = Boolean(dashboard.data?.live?.is_live)
+
+  // A separate lightweight poll keeps the score fresh without refetching
+  // standings and schedules every ten seconds.
+  const liveFeed = useApi("/api/live", {
+    params: { team: favoriteTeam },
+    poll: isLive ? POLL_LIVE : POLL_IDLE,
+    keepPrevious: true,
+  })
+
+  const roster = useApi("/api/roster", {
+    params: { team: favoriteTeam, uid: user?.uid },
+    enabled: Boolean(user),
+    keepPrevious: true,
+  })
+
+  const favorites = useApi("/api/favorites", {
+    params: { uid: user?.uid },
+    enabled: Boolean(user),
+    keepPrevious: true,
+  })
+
+  const live = liveFeed.data ?? dashboard.data?.live
+  const favoriteIds = useMemo(
+    () => new Set((favorites.data || []).map(f => f.player_id)),
+    [favorites.data])
+
+  // ── Actions ────────────────────────────────────────────────────────────────
   const handleTeamChange = (teamId) => {
-    localStorage.setItem("favoriteTeam", teamId)
     setFavoriteTeam(teamId)
-    // Do NOT clear players here — favorites must remain visible during team switch.
-    // fetchRoster → fetchFavoritesWithRoster will replace players atomically once ready.
-    setStandings([])
-    setLive(null)
-    setPrevGame(null)
-    setNextGame(null)
-    setPitchers([])
-    setPitchersLoading(true)
-    setLoading(true)
-    if (user) {
-      fetch(`${API}/api/preferences`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uid: user.uid, favorite_team: teamId })
-      }).catch(err => console.error("Save team preference error:", err))
-    }
+    savePreference({ favorite_team: teamId })
+    setSettingsOpen(false)
   }
 
-  const handleDefaultTabChange = (tab) => {
-    localStorage.setItem("defaultTab", tab)
-    setDefaultTab(tab)
-    if (user) {
-      fetch(`${API}/api/preferences`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uid: user.uid, default_tab: tab })
-      }).catch(err => console.error("Save default tab preference error:", err))
-    }
-  }
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser)
-      setAuthLoading(false)
-      if (firebaseUser) {
-        fetch(`${API}/api/preferences?uid=${firebaseUser.uid}`)
-          .then(res => {
-            if (!res.ok) return {}
-            return res.json()
-          })
-          .then(prefs => {
-            const team = prefs.favorite_team || "padres"
-            setFavoriteTeam(team)
-            localStorage.setItem("favoriteTeam", team)
-            if (!prefs.favorite_team) {
-              fetch(`${API}/api/preferences`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ uid: firebaseUser.uid, favorite_team: "padres" })
-              }).catch(err => console.error("Failed to save default Padres team preference to backend:", err))
-            }
-            if (prefs.timezone) {
-              setTimezone(prefs.timezone)
-              localStorage.setItem("timezone", prefs.timezone)
-            }
-            if (prefs.default_tab) {
-              setDefaultTab(prefs.default_tab)
-              setActiveTab(prefs.default_tab)
-              localStorage.setItem("defaultTab", prefs.default_tab)
-            }
-            setPrefsLoading(false)
-          })
-          .catch(err => {
-            console.error("Preferences fetch error:", err)
-            setPrefsLoading(false)
-          })
-      } else {
-        setPrefsLoading(false)
-      }
-    })
-    return () => unsubscribe()
-  }, [])
-
-  const fetchPitchers = (team) => {
-    fetch(`${API}/api/pitchers?team=${team}`)
-      .then(res => res.json())
-      .then(data => { setPitchers(data); setPitchersLoading(false) })
-      .catch(err => { console.error("Pitchers fetch error:", err); setPitchersLoading(false) })
-  }
-
-  const fetchNextGame = (team) => {
-    fetch(`${API}/api/nextgame?team=${team}`)
-      .then(res => res.json())
-      .then(data => setNextGame(data))
-      .catch(err => console.error("Next game fetch error:", err))
-  }
-
-  const fetchNlPlayoff = () => {
-    fetch(`${API}/api/nlplayoff`)
-      .then(res => res.json())
-      .then(data => setPlayoffData(data))
-      .catch(err => console.error("NL Playoff fetch error:", err))
-  }
-
-  const fetchAlPlayoff = () => {
-    fetch(`${API}/api/alplayoff`)
-      .then(res => res.json())
-      .then(data => setPlayoffData(data))
-      .catch(err => console.error("AL Playoff fetch error:", err))
-  }
-
-  const fetchPlayoff = (team) => {
-    const teamData = teamsData.find(t => t.id === team)
-    const isAL = teamData?.division?.startsWith("AL") || false
-    if (isAL) {
-      fetchAlPlayoff()
-    } else {
-      fetchNlPlayoff()
-    }
-  }
-  const fetchWildcard = () => {
-    fetch(`${API}/api/wildcard`)
-      .then(res => res.json())
-      .then(data => setWildcard(data))
-      .catch(err => console.error("Wildcard fetch error:", err))
-  }
-
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (searchOpen && !e.target.closest('.search-container')) {
-        setSearchOpen(false)
-        setSearchResults([])
-        setSearchQuery("")
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [searchOpen])
-
-  const handleGlobalSearch = () => {
-    if (!searchQuery.trim()) return
-    setSearching(true)
-    fetch(`${API}/api/search?name=${encodeURIComponent(searchQuery)}`)
-      .then(res => res.json())
-      .then(data => {
-        setSearchResults(data)
-        setSearching(false)
-      })
-      .catch(() => setSearching(false))
-  }
-
-  const fetchLive = (team) => {
-     fetch(`${API}/api/live?team=${team}`)
-      .then(res => res.json())
-      .then(data => setLive(data))
-      .catch(err => console.error("Live fetch error:", err))
-  }
-
-  const fetchFavoritesWithRoster = (rosterData) => {
-    fetch(`${API}/api/favorites?uid=${user.uid}`)
-      .then(res => res.json())
-      .then(favs => {
-        const existingIds = new Set(rosterData.map(p => p.player_id))
-        const newPlayers = favs.filter(f => !existingIds.has(f.player_id))
-        const updated = rosterData.map(p => ({
-          ...p,
-          favorited: favs.some(f => f.player_id === p.player_id)
-        }))
-        const favoritedPlayers = [...updated, ...newPlayers].filter(p => p.favorited)
-        preloadPlayerGames(favoritedPlayers)
-        setPlayers([...updated, ...newPlayers])
-        setLoading(false)
-        setFavoritesLoaded(true)
-      })
-      .catch(err => { console.error("Favorites fetch error:", err); setLoading(false) })
-  }
-
-  const preloadPlayerGames = (favoritedPlayers) => {
-    favoritedPlayers.forEach(player => {
-      fetch(`${API}/api/playergame/${player.player_id}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data) {
-            setPlayerGames(prev => ({
-              ...prev,
-              [player.player_id]: data
-            }))
-          }
-        })
-        .catch(err => console.error("Preload error:", err))
-    })
-  }
-
-  const fetchRoster = (team) => {
-    fetch(`${API}/api/roster?team=${team}&uid=${user.uid}`)
-      .then(res => res.json())
-      .then(data => {
-        // Don't call setPlayers here — wait for fetchFavoritesWithRoster to merge
-        // favorites before updating state, preventing a transient "no favorites" flash.
-        fetchFavoritesWithRoster(data, team)
-      })
-      .catch(err => { console.error("Roster fetch error:", err); setLoading(false) })
-  }
-
-  const fetchStandings = (team) => {
-    fetch(`${API}/api/standings?team=${team}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data && data.teams) {
-          setStandings(data.teams)
-          setStandingsDivision(data.division_name || "")
-        } else {
-          setStandings(Array.isArray(data) ? data : [])
-          setStandingsDivision("")
-        }
-      })
-      .catch(err => console.error("Standings fetch error:", err))
-  }
-
-  const fetchPrevGame = (team) => {
-    fetch(`${API}/api/prevgame?team=${team}`)
-      .then(res => res.json())
-      .then(data => setPrevGame(data))
-      .catch(err => console.error("Prev game fetch error:", err))
-  }
-
-  const toggleFavorite = (player) => {
-    const isPitcher = player.role === "SP" || player.role === "RP"
-  
-    if (isPitcher) {
-      setPitchers(prev => prev.map(p =>
-        p.player_id === player.player_id ? { ...p, favorited: !p.favorited } : p
-      ))
-    } else {
-      setPlayers(prev => {
-        const exists = prev.find(p => p.player_id === player.player_id)
-        if (exists) {
-          return prev.map(p =>
-            p.player_id === player.player_id ? { ...p, favorited: !p.favorited } : p
-          )
-        } else {
-          return [...prev, { ...player, favorited: true }]
-        }
-      })
-    }
-  
-    fetch(`${API}/api/favorites`, {
+  const toggleFavorite = useCallback(async (player) => {
+    if (!user) return
+    await api("/api/favorites", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+      body: {
+        uid: user.uid,
         player_id: player.player_id,
         name: player.name,
         position: player.position,
         team: player.team,
-        uid: user.uid,
-        favorite_team: favoriteTeam
-      })
-    }).catch(err => console.error("Favorite error:", err))
+      },
+    })
+    // Refetch both so the star state and the favorites list stay in step.
+    favorites.refetch()
+    roster.refetch({ quiet: true })
+  }, [user, favorites, roster])
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  if (authLoading) {
+    return (
+      <div className="center-screen">
+        <p className="muted">Loading…</p>
+      </div>
+    )
   }
-
-useEffect(() => {
-  fetchLive(favoriteTeam)
-  fetchStandings(favoriteTeam)
-  fetchPrevGame(favoriteTeam)
-  fetchNextGame(favoriteTeam)
-  fetchWildcard()
-  fetchPlayoff(favoriteTeam)
-  const interval = setInterval(() => fetchLive(favoriteTeam), 5000)
-  return () => clearInterval(interval)
-}, [favoriteTeam])
-
-useEffect(() => {
-  if (user) {
-    fetchRoster(favoriteTeam)
-    fetchPitchers(favoriteTeam)
-  }
-}, [user, favoriteTeam])
-
-  if (authLoading || prefsLoading) return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0a1929" }}>
-      <p style={{ color: "#ffc425" }}>Loading...</p>
-    </div>
-  )
 
   if (!user) return <Login />
 
-  const favoriteTeamName = teamsData.find(t => t.id === favoriteTeam)?.shortName || "MLB"
+  const record = dashboard.data?.division?.teams?.find(t => t.team_id === team.teamId)
 
   return (
     <div className="app">
+      <header className="app-header">
+        <span className="app-header__mark">{team.abbreviation}</span>
+        <span className="app-header__title">{team.shortName}</span>
+        {record && (
+          <span className="app-header__record">
+            {record.wins}-{record.losses}
+            {record.gb && record.gb !== "-" ? ` · ${record.gb} GB` : ""}
+          </span>
+        )}
+        <span className="app-header__spacer" />
+        <SearchPanel
+          isFavorite={id => favoriteIds.has(id)}
+          onToggleFavorite={toggleFavorite}
+        />
+        <button
+          className="btn btn--icon"
+          onClick={() => setSettingsOpen(true)}
+          aria-label="Settings"
+          title="Settings"
+        >
+          ⚙
+        </button>
+      </header>
+
       {settingsOpen && (
         <Settings
+          user={user}
           favoriteTeam={favoriteTeam}
-          isFirstSetup={false}
-          onSave={(teamId) => { handleTeamChange(teamId); setSettingsOpen(false) }}
+          onTeamChange={handleTeamChange}
           onClose={() => setSettingsOpen(false)}
           onLogout={() => signOut(auth)}
           timezone={timezone}
-          onTimezoneChange={handleTimezoneChange}
+          onTimezoneChange={(tz) => { setTimezone(tz); savePreference({ timezone: tz }) }}
           defaultTab={defaultTab}
-          onDefaultTabChange={handleDefaultTabChange}
+          onDefaultTabChange={(tab) => { setDefaultTab(tab); savePreference({ default_tab: tab }) }}
         />
       )}
-      <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 24 }}>
-        <h1 style={{ margin: 0 }}>{favoriteTeamName} Dashboard</h1>
-        <div style={{ position: "absolute", right: 0, display: "flex", gap: 8 }}>
+
+      <nav className="tabs" aria-label="Sections">
+        {TABS.map(tab => (
           <button
-            onClick={() => setSettingsOpen(true)}
-            title="Settings"
-            style={{
-              background: "transparent",
-              border: "1.5px solid var(--color-accent)",
-              color: "var(--color-accent)",
-              borderRadius: 8,
-              padding: "4px 10px",
-              fontSize: 16,
-              cursor: "pointer"
-            }}
+            key={tab.key}
+            className={`tab${activeTab === tab.key ? " tab--active" : ""}`}
+            onClick={() => setActiveTab(tab.key)}
+            aria-current={activeTab === tab.key}
           >
-            ⚙️
+            {tab.label}
           </button>
+        ))}
+      </nav>
+
+      {dashboard.error && (
+        <div style={{ marginBottom: 16 }}>
+          <ErrorNote error={dashboard.error} onRetry={dashboard.refetch} />
         </div>
-      </div>
-
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 16, position: "relative", paddingRight: activeTab === "favorites" ? 44 : 0, paddingLeft: activeTab === "favorites" ? 44 : 0 }}>
-        <button
-          className={`tab ${activeTab === "dashboard" ? "active" : ""}`}
-          onClick={() => setActiveTab("dashboard")}
-        >
-          Dashboard
-        </button>
-        <button
-          className={`tab ${activeTab === "favorites" ? "active" : ""}`}
-          onClick={() => setActiveTab("favorites")}
-        >
-          Favorites
-        </button>
-        <button
-          className={`tab ${activeTab === "bullpen" ? "active" : ""}`}
-          onClick={() => setActiveTab("bullpen")}
-        >
-          Bullpen
-        </button>
-        <button
-          className={`tab ${activeTab === "wildcard" ? "active" : ""}`}
-          onClick={() => setActiveTab("wildcard")}
-        >
-          Playoff Push
-        </button>
-
-        {activeTab === "favorites" && (
-          <div className="search-container" style={{ position: "absolute", right: 0 }}>
-            <button
-              onClick={() => { setSearchOpen(!searchOpen); setSearchResults([]); setSearchQuery("") }}
-              style={{
-                background: "transparent",
-                border: "1.5px solid #ffc425",
-                color: "#ffc425",
-                borderRadius: "50%",
-                width: 36, height: 36,
-                cursor: "pointer",
-                fontSize: 16
-              }}
-            >🔍</button>
-
-            {searchOpen && (
-              <>
-                <div
-                  style={{
-                    position: "fixed",
-                    top: 0, left: 0,
-                    width: "100vw", height: "100vh",
-                    zIndex: 99
-                  }}
-                  onClick={() => {
-                    setSearchOpen(false)
-                    setSearchResults([])
-                    setSearchQuery("")
-                  }}
-                />
-                <div style={{
-                  position: "absolute",
-                  top: 44,
-                  right: 0,
-                  background: "#1a3a4a",
-                  borderRadius: 12,
-                  padding: 16,
-                  width: 320,
-                  zIndex: 100,
-                  boxShadow: "0 4px 20px rgba(0,0,0,0.4)"
-                }}>
-                  <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                    <input
-                      autoFocus
-                      type="text"
-                      value={searchQuery}
-                      onChange={e => setSearchQuery(e.target.value)}
-                      onKeyDown={e => e.key === "Enter" && handleGlobalSearch()}
-                      placeholder="Search any MLB player..."
-                      style={{
-                        flex: 1,
-                        padding: "8px 12px",
-                        borderRadius: 8,
-                        border: "1.5px solid #ffc425",
-                        background: "#0d1f2d",
-                        color: "white",
-                        fontSize: 13,
-                        outline: "none"
-                      }}
-                    />
-                    <button
-                      onClick={handleGlobalSearch}
-                      style={{
-                        background: "#ffc425",
-                        color: "#0d1f2d",
-                        border: "none",
-                        borderRadius: 8,
-                        padding: "8px 12px",
-                        fontWeight: "bold",
-                        cursor: "pointer",
-                        fontSize: 13
-                      }}
-                    >
-                      {searching ? "..." : "Go"}
-                    </button>
-                  </div>
-
-                  {searchResults.map((p, i) => {
-                    const isFav = players.some(pl => pl.player_id === p.player_id && pl.favorited)
-                    return (
-                      <div key={i} style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        padding: "7px 0",
-                        borderBottom: i < searchResults.length - 1 ? "1px solid #0d1f2d" : "none",
-                        fontSize: 13
-                      }}>
-                        <div>
-                          <span style={{ fontWeight: "bold" }}>{p.name}</span>
-                          <span style={{ color: "#aaa", marginLeft: 8, fontSize: 12 }}>
-                            {p.position} · {p.team === "Unknown" ? "Prospect" : p.team}
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => {
-                            toggleFavorite({ ...p, favorited: isFav })
-                            setSearchResults(prev => prev.map(r =>
-                              r.player_id === p.player_id ? { ...r, _toggled: !isFav } : r
-                            ))
-                          }}
-                          style={{
-                            background: isFav ? "rgba(255,196,37,0.2)" : "transparent",
-                            border: "1.5px solid #ffc425",
-                            color: "#ffc425",
-                            borderRadius: 6,
-                            padding: "3px 8px",
-                            cursor: "pointer",
-                            fontSize: 12,
-                            fontWeight: "bold"
-                          }}
-                        >
-                          {isFav ? "★" : "☆"}
-                        </button>
-                      </div>
-                    )
-                  })}
-                </div>
-              </>
-            )}
-          </div>
-        )}
-      </div>
+      )}
 
       {activeTab === "dashboard" && (
-        <>
-          <div className="top-row" style={{ minHeight: 280 }}>
-            <LiveGame live={live} prevGame={prevGame} nextGame={nextGame} favoriteTeam={favoriteTeam} timezone={timezone} />
-            <Standings teams={standings} divisionName={standingsDivision} wildcard={wildcard} playoffData={playoffData} isAL={teamsData.find(t => t.id === favoriteTeam)?.division?.startsWith("AL") || false} favoriteTeam={favoriteTeam} />
-          </div>
-          <RosterTable
-            players={players}
-            pitchers={pitchers}
-            pitchersLoading={pitchersLoading}
-            battersLoading={loading}
-            onToggleFavorite={toggleFavorite}
-            currentTeamName={teamsData.find(t => t.id === favoriteTeam)?.name}
+        <div className="grid grid--dash">
+          <LiveGame
+            live={live}
+            previous={dashboard.data?.previous}
+            next={dashboard.data?.next}
+            favoriteTeamId={team.teamId}
+            timezone={timezone}
+            loading={dashboard.loading && !dashboard.data}
           />
-        </>
+          <Standings
+            division={dashboard.data?.division}
+            playoff={dashboard.data?.playoff}
+            favoriteTeamId={team.teamId}
+            loading={dashboard.loading && !dashboard.data}
+          />
+        </div>
       )}
 
-      <div style={{ display: activeTab === "favorites" ? "block" : "none" }}>
+      {activeTab === "team" && (
+        <div style={{ display: "grid", gap: 16 }}>
+          <RosterTable
+            batters={roster.data?.batters || []}
+            pitchers={roster.data?.pitchers || []}
+            loading={roster.loading && !roster.data}
+            onToggleFavorite={toggleFavorite}
+            season={dashboard.data?.season || ""}
+          />
+          <Card title={`${team.division} standings`}>
+            <DivisionTable
+              data={dashboard.data?.division}
+              favoriteTeamId={team.teamId}
+              loading={dashboard.loading && !dashboard.data}
+            />
+          </Card>
+        </div>
+      )}
+
+      {activeTab === "favorites" && (
         <FavoritesTab
-          players={players}
+          favorites={favorites.data || []}
+          loading={favorites.loading && !favorites.data}
           onToggleFavorite={toggleFavorite}
-          playerGames={playerGames}
-          API={API}
           timezone={timezone}
-          favoritesLoaded={favoritesLoaded}
         />
-      </div>
+      )}
 
       {activeTab === "bullpen" && (
-        <div style={{ position: "relative" }}>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 8, visibility: "hidden" }}>
-            <div style={{ width: 36, height: 36 }} />
-            <div style={{ width: 60, height: 36 }} />
-          </div>
-          <p style={{ textAlign: "center", color: "#aaa" }}>Bullpen tracker coming soon!</p>
-        </div>
+        <Bullpen team={favoriteTeam} teamName={team.shortName} />
       )}
 
-      {activeTab === "wildcard" && (
-        <div style={{ position: "relative" }}>
-          <PlayoffPushTab
-            playoffData={playoffData}
-            standings={standings}
-            favoriteTeam={favoriteTeam}
-            API={API}
-          />
-        </div>
+      {activeTab === "playoff" && (
+        <PlayoffPushTab
+          playoff={dashboard.data?.playoff}
+          division={dashboard.data?.division}
+          favoriteTeamId={team.teamId}
+          favoriteTeam={favoriteTeam}
+          loading={dashboard.loading && !dashboard.data}
+        />
       )}
     </div>
   )
 }
-
-export default App
