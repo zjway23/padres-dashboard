@@ -5,10 +5,12 @@ fans out into per-player requests.
 """
 
 import re
+import statistics
+import threading
 from datetime import date, timedelta
 
 from mlb import (
-    BASE_V11, DIVISION_NAMES, TTL_GAMELOG, TTL_LIVE, TTL_PLAYS, TTL_ROSTER,
+    BASE_V11, cache, DIVISION_NAMES, TTL_GAMELOG, TTL_LIVE, TTL_PLAYS, TTL_ROSTER,
     TTL_SCHEDULE, TTL_STANDINGS, current_season, fmt, get_json, league_id_for,
     resolve_team_id, season_info, team_meta, team_name, today_et,
 )
@@ -652,6 +654,7 @@ def injury_report(team_id):
                 "expired": bool(deadline and deadline < today),
             }
 
+        days_out = (today - placed).days if placed else None
         readiness = _readiness(entry["il_code"], eligible, today, rehab,
                                last_played, last_played_season, season)
 
@@ -675,7 +678,7 @@ def injury_report(team_id):
             "placed_date": fmt(placed) if placed else None,
             "placed_estimated": placed_estimated,
             "transferred_date": stint["transferred"],
-            "days_out": (today - placed).days if placed else None,
+            "days_out": days_out,
             "games_missed": missed,
             "last_played": last_played,
             "last_played_season": last_played_season,
@@ -687,6 +690,7 @@ def injury_report(team_id):
             "readiness_label": READINESS_LABEL[readiness],
             "return_detail": _return_detail(entry, eligible, today, rehab, readiness, window),
             "rehab": rehab,
+            "typical_absence": _typical_absence(stint["injury"], days_out),
             "season_line": _injury_stat_line(_season_line(person, group), group),
             "timeline": [e for e in (transactions.get(pid) or [])
                          if _is_injury_event(e["description"])][-6:],
@@ -773,6 +777,175 @@ def _injury_stat_line(s, group):
             "hr": _num(s.get("homeRuns")), "rbi": _num(s.get("rbi")),
             "hits": _num(s.get("hits")), "runs": _num(s.get("runs")),
             "sb": _num(s.get("stolenBases"))}
+
+
+# ─── Historical injury durations ──────────────────────────────────────────────
+
+# How long comparable injuries have actually kept players out, measured from the
+# transaction feed: a placement opens a spell and the matching activation closes
+# it, so the gap is the real number of days missed.
+#
+# This is a base rate, never a prediction, and it is reported as the middle half
+# of past cases rather than a single date. Two limits decide where it is allowed
+# to appear at all, both enforced in `_duration_norms`:
+#
+#   - 19% of IL placements never end in an activation, so they contribute no
+#     measurable spell and are silently dropped. Every median is therefore
+#     optimistic, and the gap is worst for arm injuries.
+#   - Spread varies enormously by injury. Hamstring strains cluster (15-36 days
+#     around a median of 22); elbow inflammation does not (22-115 around 45).
+#     Quoting a midpoint for the second kind would invent precision that the
+#     data does not have.
+#
+# Requiring a tight interquartile range silences the stat exactly where it would
+# mislead, which happens to be the arm injuries people most want an answer for.
+DURATION_SEASONS = 5
+MIN_DURATION_SAMPLE = 25
+# Reject a category whose middle half is more than 1.5x its own median. Because
+# the range is what gets displayed - never a midpoint - a wide one documents its
+# own uncertainty honestly ("29-143 days" plainly says nobody knows). Past this
+# threshold even that stops being useful: "elbow inflammation" spans 22-115 days
+# around a median of 45, covering everything from a cortisone shot to surgery.
+MAX_SPREAD_RATIO = 1.5
+
+TTL_DURATIONS = 86400  # Historical base rates move on the order of weeks.
+
+_LATERALITY_RE = re.compile(r"\b(right|left|rt|lt)\b\s*", re.I)
+
+
+def _normalize_diagnosis(text):
+    """'Right hamstring strain' -> 'hamstring strain'.
+
+    Side of the body has no bearing on how long an injury lasts, and keeping it
+    would split every category into two half-sized ones.
+    """
+    if not text:
+        return None
+    cleaned = _LATERALITY_RE.sub("", text.lower().strip().rstrip("."))
+    return re.sub(r"\s+", " ", cleaned).strip() or None
+
+
+def _completed_spells(season):
+    """Every (diagnosis, days missed) pair the feed can resolve for one season."""
+    try:
+        data = get_json("/transactions", {
+            "startDate": f"{season}-01-01",
+            "endDate": f"{season}-12-31",
+        }, ttl=TTL_DURATIONS)
+    except Exception:
+        return []
+
+    events = {}
+    for tx in data.get("transactions", []):
+        pid = (tx.get("person") or {}).get("id")
+        text = tx.get("description") or ""
+        day = tx.get("resolutionDate") or tx.get("effectiveDate") or tx.get("date")
+        if pid is None or not text or not day:
+            continue
+        events.setdefault(pid, []).append((day, text))
+
+    spells = []
+    for player_events in events.values():
+        player_events.sort()
+        pending = None
+        for day, text in player_events:
+            if _PLACED_RE.search(text):
+                diagnosis = _DIAGNOSIS_RE.search(text)
+                pending = (day, _normalize_diagnosis(
+                    diagnosis.group(1) if diagnosis else None))
+            elif _ACTIVATED_RE.search(text) and pending:
+                start, diagnosis = pending
+                pending = None
+                if not diagnosis:
+                    continue
+                first, last = _parse_day(start), _parse_day(day)
+                if not first or not last:
+                    continue
+                days = (last - first).days
+                # A same-day round trip is paperwork, not an injury, and a spell
+                # longer than a year is almost always a mis-paired placement.
+                if 0 < days < 400:
+                    spells.append((diagnosis, days))
+    return spells
+
+
+def _build_duration_norms():
+    buckets = {}
+    current = current_season()
+    for season in range(current - DURATION_SEASONS + 1, current + 1):
+        for diagnosis, days in _completed_spells(season):
+            buckets.setdefault(diagnosis, []).append(days)
+
+    norms = {}
+    for diagnosis, values in buckets.items():
+        if len(values) < MIN_DURATION_SAMPLE:
+            continue
+        values.sort()
+        count = len(values)
+        median = statistics.median(values)
+        low, high = values[count // 4], values[(3 * count) // 4]
+        if not median or (high - low) / median > MAX_SPREAD_RATIO:
+            continue
+        norms[diagnosis] = {"median": int(median), "low": int(low),
+                            "high": int(high), "sample": count}
+    return norms
+
+
+_norms_guard = threading.Lock()
+_norms_warming = False
+
+
+def _warm_duration_norms():
+    global _norms_warming
+    try:
+        cache.get_or_set(("injury-durations", current_season()),
+                         TTL_DURATIONS, _build_duration_norms)
+    except Exception:
+        pass
+    finally:
+        with _norms_guard:
+            _norms_warming = False
+
+
+def _duration_norms():
+    """Days-missed norms per diagnosis, warmed off the request path.
+
+    Building these reads five seasons of league-wide transactions, which takes
+    about twenty seconds - far too long to sit in front of a page load. The
+    first caller therefore gets nothing and triggers a background build; every
+    caller after it reads the day-long cache. A tab that shows no historical
+    range for a few seconds is a much better failure than one that hangs.
+    """
+    global _norms_warming
+    hit = cache.get(("injury-durations", current_season()))
+    if hit is not None:
+        return hit
+    with _norms_guard:
+        if not _norms_warming:
+            _norms_warming = True
+            threading.Thread(target=_warm_duration_norms, daemon=True).start()
+    return {}
+
+
+def _typical_absence(injury, days_out):
+    """What comparable injuries have historically cost, or None when unknown."""
+    norm = _duration_norms().get(_normalize_diagnosis(injury))
+    if not norm:
+        return None
+    out = dict(norm)
+    out["label"] = f"{norm['low']}-{norm['high']} days"
+    # Placing the current absence against the distribution is the part that
+    # carries information: "past the usual range" is a real signal, and it is
+    # one the IL clock alone never gives.
+    if days_out is None:
+        out["standing"] = None
+    elif days_out > norm["high"]:
+        out["standing"] = "beyond"
+    elif days_out >= norm["low"]:
+        out["standing"] = "within"
+    else:
+        out["standing"] = "early"
+    return out
 
 
 # ─── Standings & playoff picture ──────────────────────────────────────────────

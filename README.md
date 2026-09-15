@@ -133,6 +133,22 @@ It is an estimate from public data, not official team reporting, and the UI
 says so. Status is always shown with an icon and a label so it doesn't rely on
 color alone.
 
+**Historical durations are gated hard.** Each card can also show how long
+comparable injuries have actually kept players out, measured by pairing IL
+placements with the activations that ended them across five seasons of the
+transaction feed. It is shown as the middle half of past cases, never a single
+date, and two rules decide whether it appears at all: at least 25 completed
+spells, and an interquartile range no wider than 1.5x its own median. The
+second rule is the important one - "elbow inflammation" spans 22 to 115 days
+around a median of 45, covering everything from a cortisone shot to surgery, so
+it is suppressed rather than quoted. Roughly 29% of injured players get a range;
+the rest get nothing, which is the honest answer. Note also that 19% of IL
+placements never end in an activation and so contribute no measurable spell,
+which biases every figure optimistic. Building the table reads five seasons of
+league-wide transactions and takes about twenty seconds, so it is warmed on a
+background thread and cached for a day rather than sitting in front of a page
+load.
+
 **Return dates are derived, not reported.** MLB publishes no expected-return
 field, so Injury Watch stitches three public sources together: roster status
 says which list a player is on, the transaction feed says when he went on it

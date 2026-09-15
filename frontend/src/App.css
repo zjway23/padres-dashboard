@@ -770,6 +770,30 @@ table.data tr.is-me td.col-name { color: var(--accent); font-weight: 650; }
   font-variant-numeric: tabular-nums;
 }
 
+.injury-typical {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 7px;
+  margin-top: 9px;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  background: var(--surface-raised);
+  font-size: 11.5px;
+}
+.injury-typical__head {
+  width: 100%;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.injury-typical__range { font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.injury-typical__n { color: var(--text-muted); }
+.injury-typical__standing { width: 100%; margin-top: 2px; color: var(--text-secondary); }
+.injury-typical__standing--beyond { color: var(--warning); }
+
 /* ─── Player cards (favorites) ────────────────────────────────────────────── */
 
 .player-card { margin-bottom: 14px; }

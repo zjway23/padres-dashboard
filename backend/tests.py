@@ -470,6 +470,84 @@ def test_readiness_separates_eligibility_from_game_readiness():
     assert stats._readiness("ILF", None, today, None, None, None, 2026) == "shut_down"
 
 
+@pytest.mark.parametrize("raw,expected", [
+    ("Right hamstring strain", "hamstring strain"),
+    ("Left hamstring strain", "hamstring strain"),
+    ("Right elbow inflammation.", "elbow inflammation"),
+    ("  Left  oblique   strain ", "oblique strain"),
+])
+def test_diagnosis_normalization_drops_laterality(raw, expected):
+    """Side of the body does not change how long an injury lasts."""
+    assert stats._normalize_diagnosis(raw) == expected
+
+
+def test_duration_gating_rejects_broad_diagnoses(monkeypatch):
+    """A category whose spread dwarfs its median says nothing worth showing.
+
+    'Elbow inflammation' runs 22-115 days around a median of 45 - everything
+    from a cortisone shot to surgery - so quoting it would invent precision the
+    data does not have.
+    """
+    spells = ([("hamstring strain", d) for d in
+               [15, 18, 20, 22, 22, 24, 25, 28, 30, 36] * 3] +
+              [("elbow inflammation", d) for d in
+               [10, 15, 22, 30, 45, 70, 90, 115, 200, 300] * 3])
+    monkeypatch.setattr(stats, "_completed_spells", lambda season: spells)
+    monkeypatch.setattr(stats, "DURATION_SEASONS", 1)
+
+    norms = stats._build_duration_norms()
+    assert "hamstring strain" in norms
+    assert "elbow inflammation" not in norms
+    assert norms["hamstring strain"]["low"] < norms["hamstring strain"]["high"]
+
+
+def test_duration_gating_requires_a_real_sample(monkeypatch):
+    monkeypatch.setattr(stats, "_completed_spells",
+                        lambda season: [("rare thing", 20)] * 5)
+    monkeypatch.setattr(stats, "DURATION_SEASONS", 1)
+    assert stats._build_duration_norms() == {}
+
+
+def test_typical_absence_places_the_current_stint(monkeypatch):
+    monkeypatch.setattr(stats, "_duration_norms", lambda: {
+        "hamstring strain": {"median": 22, "low": 15, "high": 36, "sample": 240},
+    })
+    assert stats._typical_absence("Right hamstring strain", 9)["standing"] == "early"
+    assert stats._typical_absence("Right hamstring strain", 29)["standing"] == "within"
+    assert stats._typical_absence("Right hamstring strain", 90)["standing"] == "beyond"
+    # An unknown or over-broad diagnosis reports nothing rather than guessing.
+    assert stats._typical_absence("Right elbow inflammation", 40) is None
+    assert stats._typical_absence(None, 40) is None
+
+
+def test_duration_norms_never_block_the_request(monkeypatch):
+    """Building norms reads five seasons of transactions, which takes about
+    twenty seconds. It must run off the request thread or the tab hangs."""
+    import threading
+    built_on = []
+    done = threading.Event()
+
+    def fake_build():
+        built_on.append(threading.current_thread())
+        done.set()
+        return {"hamstring strain": {"median": 22, "low": 15, "high": 36,
+                                     "sample": 240}}
+
+    monkeypatch.setattr(stats, "_build_duration_norms", fake_build)
+    monkeypatch.setattr(stats, "_norms_warming", False)
+    stats.cache.clear()
+
+    # The cold call returns nothing at once rather than waiting on the build.
+    assert stats._duration_norms() == {}
+
+    assert done.wait(5), "background warm never ran"
+    assert built_on[0] is not threading.current_thread(), \
+        "norms were built on the calling thread"
+
+    # Once warm, the cached value is what callers get.
+    assert "hamstring strain" in stats._duration_norms()
+
+
 @live
 def test_injury_report_is_internally_consistent(client):
     body = client.get("/api/injuries?team=padres").get_json()

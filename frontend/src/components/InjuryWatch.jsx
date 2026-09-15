@@ -27,6 +27,15 @@ const READINESS_ICON = {
   shut_down: "✕",
 }
 
+// Where the current absence sits against comparable past injuries. The phrasing
+// stays descriptive: the range is a historical base rate, not a projection, and
+// it is deliberately absent for diagnoses too broad to say anything useful about.
+const STANDING_NOTE = {
+  early: "not yet at the usual range",
+  within: "inside the usual range",
+  beyond: "past the usual range",
+}
+
 const PITCHING_STATS = [
   ["ERA", "era"], ["IP", "ip"], ["WHIP", "whip"], ["SO", "so"], ["SV", "saves"],
   ["HLD", "holds"],
@@ -120,6 +129,21 @@ function InjuryCard({ player, season }) {
       </dl>
 
       <p className="injury-card__detail">{player.return_detail}</p>
+
+      {player.typical_absence && (
+        <div className="injury-typical">
+          <span className="injury-typical__head">Comparable injuries</span>
+          <span className="injury-typical__range">{player.typical_absence.label}</span>
+          <span className="injury-typical__n">
+            middle half of {player.typical_absence.sample} past cases
+          </span>
+          {player.typical_absence.standing && player.days_out != null && (
+            <span className={`injury-typical__standing injury-typical__standing--${player.typical_absence.standing}`}>
+              {player.days_out}d out — {STANDING_NOTE[player.typical_absence.standing]}
+            </span>
+          )}
+        </div>
+      )}
 
       <SeasonLine player={player} />
 
