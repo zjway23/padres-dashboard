@@ -103,7 +103,7 @@ export default function Settings({
           <div style={{ minWidth: 0 }}>
             <div className="muted" style={{ fontSize: 11 }}>Signed in as</div>
             <div style={{ fontSize: 13, overflow: "hidden", textOverflow: "ellipsis" }}>
-              {user?.email || user?.displayName || "—"}
+              {user?.email || "Not signed in"}
             </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>

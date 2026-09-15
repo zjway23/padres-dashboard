@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { onAuthStateChanged, signOut } from "firebase/auth"
-import { auth } from "./firebase"
+import { auth, firebaseReady } from "./firebase"
 
 import Login from "./components/Login"
 import Settings from "./components/Settings"
@@ -42,9 +42,18 @@ function normalizeTab(value) {
 const POLL_LIVE = 10000
 const POLL_IDLE = 120000
 
+// Stand-in session for a build with no Firebase config. Everything driven by a
+// team - scores, standings, roster, bullpen, injuries, the playoff race - works
+// without an account. Only favorites and saved preferences need a real uid, and
+// they read as empty rather than breaking, so an unconfigured checkout is worth
+// far more as a working dashboard than as a login screen nobody can get past.
+const SIGNED_OUT_USER = { uid: "", displayName: "Local", email: null }
+
 export default function App() {
-  const [user, setUser] = useState(null)
-  const [authLoading, setAuthLoading] = useState(true)
+  // With no Firebase config there is nothing to wait for and nobody to sign in,
+  // so start settled on the stand-in session rather than flashing a loader.
+  const [user, setUser] = useState(firebaseReady ? null : SIGNED_OUT_USER)
+  const [authLoading, setAuthLoading] = useState(firebaseReady)
 
   const [favoriteTeam, setFavoriteTeam] = useStoredState("favoriteTeam", "padres")
   const [timezone, setTimezone] = useStoredState("timezone", "America/Los_Angeles")
@@ -57,24 +66,27 @@ export default function App() {
   useEffect(() => { applyTeamTheme(favoriteTeam) }, [favoriteTeam])
 
   // ── Auth & stored preferences ──────────────────────────────────────────────
-  useEffect(() => onAuthStateChanged(auth, async (firebaseUser) => {
-    setUser(firebaseUser)
-    if (firebaseUser) {
-      try {
-        const prefs = await api("/api/preferences", { params: { uid: firebaseUser.uid } })
-        if (prefs.favorite_team) setFavoriteTeam(prefs.favorite_team)
-        if (prefs.timezone) setTimezone(prefs.timezone)
-        if (prefs.default_tab) {
-          const tab = normalizeTab(prefs.default_tab)
-          setDefaultTab(tab)
-          setActiveTab(tab)
+  useEffect(() => {
+    if (!firebaseReady) return undefined
+    return onAuthStateChanged(auth, async (firebaseUser) => {
+      setUser(firebaseUser)
+      if (firebaseUser) {
+        try {
+          const prefs = await api("/api/preferences", { params: { uid: firebaseUser.uid } })
+          if (prefs.favorite_team) setFavoriteTeam(prefs.favorite_team)
+          if (prefs.timezone) setTimezone(prefs.timezone)
+          if (prefs.default_tab) {
+            const tab = normalizeTab(prefs.default_tab)
+            setDefaultTab(tab)
+            setActiveTab(tab)
+          }
+        } catch {
+          // Preferences are a convenience; local values already cover this session.
         }
-      } catch {
-        // Preferences are a convenience; local values already cover this session.
       }
-    }
-    setAuthLoading(false)
-  }), [setFavoriteTeam, setTimezone, setDefaultTab])
+      setAuthLoading(false)
+    })
+  }, [setFavoriteTeam, setTimezone, setDefaultTab])
 
   const savePreference = useCallback((patch) => {
     if (!user) return
@@ -184,12 +196,24 @@ export default function App() {
           favoriteTeam={favoriteTeam}
           onTeamChange={handleTeamChange}
           onClose={() => setSettingsOpen(false)}
-          onLogout={() => signOut(auth)}
+          onLogout={() => firebaseReady && signOut(auth)}
           timezone={timezone}
           onTimezoneChange={(tz) => { setTimezone(tz); savePreference({ timezone: tz }) }}
           defaultTab={defaultTab}
           onDefaultTabChange={(tab) => { setDefaultTab(tab); savePreference({ default_tab: tab }) }}
         />
+      )}
+
+      {!firebaseReady && (
+        <div className="config-note">
+          <span aria-hidden="true">●</span>
+          <span>
+            Running signed out — no Firebase config found. Scores, standings, roster,
+            bullpen, injuries and the playoff race all work; favorites and saved
+            preferences need an account. Add <code>frontend/.env.local</code> to
+            enable sign-in.
+          </span>
+        </div>
       )}
 
       <nav className="tabs" aria-label="Sections">

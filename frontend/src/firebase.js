@@ -10,6 +10,18 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 }
 
-const app = initializeApp(firebaseConfig)
-export const auth = getAuth(app)
-export const googleProvider = new GoogleAuthProvider()
+/**
+ * Whether sign-in is even possible in this build.
+ *
+ * Without `frontend/.env.local` every VITE_FIREBASE_* value is undefined, and
+ * `getAuth()` then throws `auth/invalid-api-key` at module scope. That kills the
+ * import before React mounts, so the entire app renders as a blank page with no
+ * console breadcrumb worth the name. Checking first lets `App` fall back to a
+ * signed-out session instead, which keeps every team-level view usable.
+ */
+export const firebaseReady = Boolean(firebaseConfig.apiKey)
+
+const app = firebaseReady ? initializeApp(firebaseConfig) : null
+
+export const auth = firebaseReady ? getAuth(app) : null
+export const googleProvider = firebaseReady ? new GoogleAuthProvider() : null
