@@ -10,6 +10,7 @@ import Standings, { DivisionTable } from "./components/Standings"
 import RosterTable from "./components/RosterTable"
 import FavoritesTab from "./components/FavoritesTab"
 import Bullpen from "./components/Bullpen"
+import InjuryWatch from "./components/InjuryWatch"
 import PlayoffPushTab from "./components/PlayoffPushTab"
 import { Card, ErrorNote, Skeleton } from "./components/ui"
 
@@ -23,6 +24,7 @@ const TABS = [
   { key: "team", label: "Team" },
   { key: "favorites", label: "Favorites" },
   { key: "bullpen", label: "Bullpen" },
+  { key: "injuries", label: "Injury Watch" },
   { key: "playoff", label: "Playoff Push" },
 ]
 
@@ -258,6 +260,10 @@ export default function App() {
 
       {activeTab === "bullpen" && (
         <Bullpen team={favoriteTeam} teamName={team.shortName} />
+      )}
+
+      {activeTab === "injuries" && (
+        <InjuryWatch team={favoriteTeam} teamName={team.shortName} />
       )}
 
       {activeTab === "playoff" && (

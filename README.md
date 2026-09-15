@@ -1,10 +1,11 @@
 # Ballpark — MLB Dashboard
 
 A live baseball dashboard built around one club at a time: scores, standings,
-the playoff race, roster stats, bullpen availability, and per-player tracking.
+the playoff race, roster stats, bullpen availability, the injured list, and
+per-player tracking.
 Defaults to the **San Diego Padres**, and works for all 30 teams.
 
-![tabs](https://img.shields.io/badge/tabs-Dashboard%20·%20Team%20·%20Favorites%20·%20Bullpen%20·%20Playoff%20Push-informational)
+![tabs](https://img.shields.io/badge/tabs-Dashboard%20·%20Team%20·%20Favorites%20·%20Bullpen%20·%20Injury%20Watch%20·%20Playoff%20Push-informational)
 
 ## Running it
 
@@ -39,12 +40,16 @@ Then open http://localhost:5173.
 | `CORS_ORIGINS` | Allowed origins for `/api/*`. Defaults to `*`. |
 | `PORT` | Backend port. Defaults to `5001`. |
 
-`frontend/.env.local`
+`frontend/.env.local` — copy `frontend/.env.local.example` and fill it in.
 
 | Variable | Purpose |
 |---|---|
-| `VITE_API_URL` | Backend base URL. |
+| `VITE_API_URL` | Backend base URL. Defaults to `http://localhost:5001`. |
 | `VITE_FIREBASE_*` | Firebase web config, used for Google sign-in. |
+
+The Firebase values are **required to run the app at all**: `App.jsx` renders
+the login screen until a user is authenticated, so without them every tab is
+behind a sign-in that cannot succeed.
 
 Only favorites and preferences need the database. If it is unreachable the API
 still serves scores, standings, rosters and the bullpen — those two features
@@ -79,6 +84,7 @@ cd frontend && npm run lint
 | `GET /api/playoff?team=` | That league's playoff picture with seeds |
 | `GET /api/roster?team=&uid=` | `{batters, pitchers}`, each flagged with favorites |
 | `GET /api/bullpen?team=` | Relievers with rest days and availability |
+| `GET /api/injuries?team=` | The injured list, with each player's earliest eligible return |
 | `GET /api/h2h?team=&opponent=` | Season series record |
 | `GET /api/search?name=` | Player search across MLB |
 | `GET /api/players/<id>/gamelog` · `/games/<pk>` · `/live` | Player detail |
@@ -126,3 +132,16 @@ from each reliever's game log and fold into available / caution / unavailable.
 It is an estimate from public data, not official team reporting, and the UI
 says so. Status is always shown with an icon and a label so it doesn't rely on
 color alone.
+
+**Return dates are derived, not reported.** MLB publishes no expected-return
+field, so Injury Watch stitches three public sources together: roster status
+says which list a player is on, the transaction feed says when he went on it
+and why, and the game log says when he last played. The earliest legal
+activation is then placement date + the list's length, which sorts every
+player into *regular season*, *postseason at the earliest*, or *next season*.
+Two rules matter for getting this right: a retroactive placement backdates the
+clock (so `resolutionDate` is read, not `date`), and transferring a player to
+the 60-day IL does not restart it — the 60 days run from the original
+placement. A separate *readiness* signal keeps the tab honest, since a pitcher
+whose clock expired in May but who hasn't thrown a pitch since 2024 is
+"eligible" in the same technical sense as a healed hamstring.

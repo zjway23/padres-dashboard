@@ -16,6 +16,7 @@ const TABS = [
   { label: "Team", value: "team" },
   { label: "Favorites", value: "favorites" },
   { label: "Bullpen", value: "bullpen" },
+  { label: "Injury Watch", value: "injuries" },
   { label: "Playoff Push", value: "playoff" },
 ]
 
