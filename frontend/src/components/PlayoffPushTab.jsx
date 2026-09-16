@@ -13,15 +13,40 @@ const MIN_GB = 2
 const SLOPE = 0.8
 const SEASON_GAMES = 162
 
+/**
+ * Snapped to half a game, because that is the only granularity games back ever
+ * has. An unrounded "within 2.6 games" reads like a made-up number; "within 2.5"
+ * says exactly which teams are in, and the filter uses the same value.
+ */
 function gbThreshold(gamesRemaining) {
   const played = SEASON_GAMES - (gamesRemaining ?? SEASON_GAMES)
   const progress = Math.max(0, Math.min(1, played / SEASON_GAMES))
-  return Math.max(MIN_GB, BASE_GB * (1 - progress * SLOPE))
+  return Math.round(Math.max(MIN_GB, BASE_GB * (1 - progress * SLOPE)) * 2) / 2
+}
+
+/** "3" or "2.5" - never "2.6". */
+function gamesText(n) {
+  return n % 1 === 0 ? `${n}` : n.toFixed(1)
+}
+
+/** MLB's clinch letters: y = division, z = division + best record in the league. */
+function wonDivision(team) {
+  return team?.division_magic === 0 || team?.clinch_indicator === "y" || team?.clinch_indicator === "z"
 }
 
 /** Games between two teams, positive when `team` trails `reference`. */
 function gapTo(reference, team) {
   return ((reference.wins - team.wins) + (team.losses - reference.losses)) / 2
+}
+
+/**
+ * True while each team can still finish ahead of the other - the actual test
+ * for "is this a race". A club whose remaining games cannot reach the other's
+ * current win total is not a contender no matter how the games back reads.
+ */
+function inPlay(a, b) {
+  if (!a || !b) return false
+  return a.wins + a.games_remaining >= b.wins && b.wins + b.games_remaining >= a.wins
 }
 
 function seriesFrom(games) {
@@ -54,7 +79,7 @@ function strengthOfSchedule(games, teamsByAbbrev) {
   return values.reduce((sum, n) => sum + n, 0) / values.length
 }
 
-function ContenderCard({ team, isMe, schedule, h2h, teamsByAbbrev }) {
+function ContenderCard({ team, isMe, schedule, h2h, teamsByAbbrev, gbTitle, note }) {
   const sos = useMemo(() => strengthOfSchedule(schedule?.games, teamsByAbbrev),
     [schedule, teamsByAbbrev])
   const series = useMemo(() => seriesFrom(schedule?.games).slice(0, 3), [schedule])
@@ -89,9 +114,14 @@ function ContenderCard({ team, isMe, schedule, h2h, teamsByAbbrev }) {
         <span className="nums" style={{ fontWeight: 650 }}>{team.wins}–{team.losses}</span>
       </div>
 
+      {note && (
+        <div style={{ fontSize: 11.5, color: note.color, marginBottom: 7 }} title={note.title}>
+          {note.text}
+        </div>
+      )}
+
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        <Pill label="GB" value={team._gap === 0 ? DASH : gamesBack(team._gap)}
-              title="Games behind your team" />
+        <Pill label="GB" value={gamesBack(team._gb)} title={gbTitle} />
         <Pill label="Rem" value={team.games_remaining} title="Games remaining" />
         <Pill label="SOS" value={sos ? sos.toFixed(3).replace(/^0/, "") : DASH}
               title="Strength of schedule: average win% of remaining opponents" />
@@ -233,6 +263,33 @@ function ClinchNote({ team }) {
   return <p className="muted" style={{ fontSize: 12, marginBottom: 14 }}>{text}</p>
 }
 
+/**
+ * The division race is settled against us - the leader clinched, or we can no
+ * longer reach their current win total. The tab still lists the division so the
+ * gap stays visible, but it has to say plainly that the wild card is the way in.
+ */
+function DivisionClosedNote({ me, leader, gb, onShowWildCard }) {
+  const clinched = wonDivision(leader)
+  return (
+    <div
+      style={{
+        display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+        padding: "9px 12px", marginBottom: 12, borderRadius: 8,
+        background: "var(--surface-inset)", borderLeft: "3px solid var(--critical)",
+      }}
+    >
+      <span aria-hidden="true">⛔</span>
+      <span style={{ flex: 1, minWidth: 200, fontSize: 12.5 }}>
+        <strong>{clinched ? `${leader.name} have clinched ${me.division}.` : `Out of the ${me.division} race.`}</strong>
+        {" "}{me.name} can no longer win the division
+        {gb > 0 && ` — ${gamesText(gb)} back with ${me.games_remaining} to play`}.
+        {" "}The wild card is the only way in.
+      </span>
+      <button className="btn btn--ghost" onClick={onShowWildCard}>Wild card →</button>
+    </div>
+  )
+}
+
 export default function PlayoffPushTab({ playoff, favoriteTeamId, favoriteTeam, loading }) {
   const [view, setView] = useState("division")
   const [schedules, setSchedules] = useState({})
@@ -250,23 +307,46 @@ export default function PlayoffPushTab({ playoff, favoriteTeamId, favoriteTeam, 
 
   const threshold = gbThreshold(me?.games_remaining)
 
+  // The two reference points every number on this tab is measured against: the
+  // team to catch in the division, and the club holding the last wild card.
+  const leader = useMemo(
+    () => (playoff || [])
+      .filter(t => me && t.division === me.division)
+      .sort((a, b) => parseFloat(b.pct) - parseFloat(a.pct) || b.wins - a.wins)[0],
+    [playoff, me])
+  const bubble = useMemo(() => (playoff || []).find(t => t.seed === 6), [playoff])
+
+  const reference = view === "division" ? leader : (bubble || leader)
+
   const contenders = useMemo(() => {
-    if (!playoff?.length || !me) return []
-    const withGap = playoff.map(t => ({ ...t, _gap: gapTo(me, t) }))
+    if (!playoff?.length || !me || !reference) return []
+    // Every GB on this tab is measured from the race's reference point, not
+    // from our own record - "3.5 back of first" is the number people want, and
+    // it stops our own card from rendering a meaningless dash.
+    const withGap = playoff.map(t => ({ ...t, _gap: gapTo(me, t), _gb: gapTo(reference, t) }))
+    const isMe = t => t.team_id === me.team_id
 
     if (view === "division") {
+      // The leader is always shown, even when they are long gone: the whole
+      // point of the division view is the distance to first place.
       return withGap
         .filter(t => t.division === me.division)
+        .filter(t => isMe(t) || t.team_id === leader.team_id
+          || (Math.abs(t._gap) <= threshold && inPlay(t, me)))
         .sort((a, b) => a.div_rank - b.div_rank)
-        .filter(t => t.team_id === me.team_id || Math.abs(t._gap) <= threshold)
     }
-    // Wild card view: teams clustered around the final playoff spot.
+
+    // Wild card view: teams that can still catch, or be caught by, either the
+    // final playoff spot or us. A club that cannot reach either one is out of
+    // the race no matter how close the games back looks.
     return withGap
-      .filter(t => t.category !== "division")
+      .filter(t => t.category !== "division" || isMe(t))
+      .filter(t => isMe(t)
+        || (Math.abs(t._gb) <= threshold && inPlay(t, reference))
+        || (Math.abs(t._gap) <= threshold && inPlay(t, me)))
       .sort((a, b) => parseFloat(b.pct) - parseFloat(a.pct))
-      .filter(t => t.team_id === me.team_id || Math.abs(t._gap) <= threshold)
       .slice(0, 8)
-  }, [playoff, me, view, threshold])
+  }, [playoff, me, leader, reference, view, threshold])
 
   // Fetch each contender's remaining schedule and head-to-head record once.
   useEffect(() => {
@@ -299,6 +379,65 @@ export default function PlayoffPushTab({ playoff, favoriteTeamId, favoriteTeam, 
   if (!me) return <Card><Empty>Standings unavailable.</Empty></Card>
 
   const gamesPlayed = SEASON_GAMES - me.games_remaining
+  const divisionGb = leader ? gapTo(leader, me) : 0
+  const divisionClosed = leader && leader.team_id !== me.team_id
+    && (wonDivision(leader) || !inPlay(me, leader))
+
+  const gbTitle = (team) => {
+    if (view === "division") {
+      return team.team_id === reference.team_id
+        ? "Leads the division"
+        : `Games behind ${reference.name}`
+    }
+    return team.team_id === reference.team_id
+      ? "Holds the final wild-card spot"
+      : `Games behind the final wild-card spot (${reference.abbreviation})`
+  }
+
+  // A card says so when its race is already decided, either way. Without this a
+  // clinched leader and a team that is mathematically done look identical.
+  const noteFor = (team) => {
+    if (view === "division") {
+      if (team.team_id === leader.team_id) {
+        if (wonDivision(team)) {
+          return { text: "✓ Division clinched", color: "var(--good)", title: "Has won the division" }
+        }
+        if (team.division_magic != null) {
+          return {
+            text: `Magic # ${team.division_magic} to clinch the division`,
+            color: "var(--text-secondary)",
+            title: "Any combination of wins by this team and losses by the nearest rival",
+          }
+        }
+        return null
+      }
+      if (wonDivision(leader) || !inPlay(team, leader)) {
+        return {
+          text: "⛔ Cannot win the division",
+          color: "var(--critical)",
+          title: wonDivision(leader)
+            ? `${leader.name} have already clinched`
+            : `Cannot reach ${leader.name} even by winning out`,
+        }
+      }
+      return null
+    }
+    if (team.playoff_magic === 0) {
+      return { text: "✓ Playoff berth clinched", color: "var(--good)", title: "Already in the postseason" }
+    }
+    if (team.playoff_tragic === 0) {
+      return { text: "⛔ Eliminated", color: "var(--critical)", title: "Cannot reach the final playoff spot" }
+    }
+    // Otherwise the cut line's own GB reads as a bare dash, which says nothing.
+    if (team.seed === 6) {
+      return {
+        text: "◆ Holds the final wild-card spot",
+        color: "var(--text-secondary)",
+        title: "Every other GB on this view is measured from here",
+      }
+    }
+    return null
+  }
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -330,9 +469,16 @@ export default function PlayoffPushTab({ playoff, favoriteTeamId, favoriteTeam, 
                   onClick={() => setView("wildcard")}>Wild card</button>
         </div>
 
+        {view === "division" && divisionClosed && (
+          <DivisionClosedNote me={me} leader={leader} gb={divisionGb}
+                              onShowWildCard={() => setView("wildcard")} />
+        )}
+
         <p className="muted" style={{ fontSize: 11.5, marginBottom: 12 }}>
-          Showing teams within {threshold.toFixed(1)} games · {gamesPlayed} played,
-          {" "}{me.games_remaining} to go
+          {view === "division"
+            ? `First place, ${me.abbreviation}, and every club still within ${gamesText(threshold)} games. GB is behind ${leader?.abbreviation || "first"}.`
+            : `Clubs within ${gamesText(threshold)} games of the final wild-card spot or of ${me.abbreviation} that can still catch someone or be caught. GB is behind the final wild-card spot${reference ? ` (${reference.abbreviation})` : ""}.`}
+          {" "}{gamesPlayed} played, {me.games_remaining} to go.
         </p>
 
         {contenders.length === 0 ? (
@@ -347,6 +493,8 @@ export default function PlayoffPushTab({ playoff, favoriteTeamId, favoriteTeam, 
                 schedule={schedules[team.team_id]}
                 h2h={h2h[team.team_id]}
                 teamsByAbbrev={teamsByAbbrev}
+                gbTitle={gbTitle(team)}
+                note={noteFor(team)}
               />
             ))}
           </div>
