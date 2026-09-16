@@ -87,7 +87,7 @@ export default function SearchPanel({ isFavorite, onToggleFavorite }) {
                 <StarButton
                   active={isFavorite(player.player_id)}
                   label={player.name}
-                  onClick={() => onToggleFavorite(player)}
+                  onClick={onToggleFavorite && (() => onToggleFavorite(player))}
                 />
               </div>
             ))}

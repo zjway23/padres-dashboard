@@ -2,7 +2,7 @@ import { useState } from "react"
 import { signInWithPopup } from "firebase/auth"
 import { auth, googleProvider } from "../firebase"
 
-export default function Login() {
+export default function Login({ onContinueAsGuest }) {
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
 
@@ -36,6 +36,18 @@ export default function Login() {
                 style={{ padding: "11px 22px", fontSize: 14.5 }}>
           {busy ? "Signing in…" : "Sign in with Google"}
         </button>
+
+        {/* An account only buys favorites and synced preferences. Everything
+            else works without one, so it shouldn't be a wall on the way in. */}
+        <div style={{ marginTop: 16 }}>
+          <button className="btn btn--ghost" onClick={onContinueAsGuest} disabled={busy}>
+            Continue as guest
+          </button>
+          <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+            Full dashboard for any club — no favorites, and preferences stay in
+            this browser.
+          </p>
+        </div>
 
         {error && (
           <div className="error-note" style={{ marginTop: 18, textAlign: "left" }}>

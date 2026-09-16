@@ -47,9 +47,12 @@ Then open http://localhost:5173.
 | `VITE_API_URL` | Backend base URL. Defaults to `http://localhost:5001`. |
 | `VITE_FIREBASE_*` | Firebase web config, used for Google sign-in. |
 
-The Firebase values are **required to run the app at all**: `App.jsx` renders
-the login screen until a user is authenticated, so without them every tab is
-behind a sign-in that cannot succeed.
+The Firebase values are optional. Without them the login screen has nothing to
+offer, so `App.jsx` starts every visitor in guest mode: all six tabs work for
+any club, team/time zone/start-tab choices are kept in `localStorage`, and only
+favorites — which are saved against a uid — are unavailable. With Firebase
+configured, visitors get the login screen and can still pick **Continue as
+guest**; signing in later takes over the session and syncs preferences.
 
 Only favorites and preferences need the database. If it is unreachable the API
 still serves scores, standings, rosters and the bullpen — those two features

@@ -621,6 +621,20 @@ table.data tr.is-me td.col-name { color: var(--accent); font-weight: 650; }
   background: var(--surface-inset);
   font-size: 11.5px;
 }
+/* Guest mode is a normal way to use the app, not a misconfiguration, so it
+   borrows the layout but not the warning tone. */
+.config-note--info {
+  background: var(--surface-inset);
+  border-color: var(--border);
+}
+.config-note--info > span:first-child { color: var(--accent); }
+
+.config-note__action {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 4px 12px;
+  font-size: 12px;
+}
 
 /* ─── Injury watch ────────────────────────────────────────────────────────── */
 
