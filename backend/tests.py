@@ -282,6 +282,23 @@ def test_health(client):
     assert isinstance(body["season"], int)
 
 
+def test_missing_route_is_a_404_not_a_500(client):
+    """The catch-all error handler used to turn routing errors into 500s.
+
+    That is actively misleading: calling an endpoint the running build does not
+    have reported "internal" server error, which sends you hunting for a crash
+    that never happened instead of a stale process.
+    """
+    response = client.get("/api/does-not-exist")
+    assert response.status_code == 404
+    assert response.get_json()["error"] == "not_found"
+
+
+def test_wrong_method_is_a_405(client):
+    response = client.delete("/api/teams")
+    assert response.status_code == 405
+
+
 def test_teams_route_lists_all_clubs(client):
     teams = client.get("/api/teams").get_json()
     assert len(teams) == 30
@@ -355,6 +372,207 @@ def test_bullpen_statuses_are_valid(client):
     for reliever in client.get("/api/bullpen?team=padres").get_json():
         assert reliever["status"] in ("available", "caution", "unavailable")
         assert reliever["status_reason"]
+
+
+# ─── Injury report ────────────────────────────────────────────────────────────
+
+def _events(*pairs):
+    return [{"date": day, "description": text} for day, text in pairs]
+
+
+def test_transfer_to_60_day_keeps_the_original_placement_date():
+    """60-day time counts from the first placement, not from the transfer.
+
+    Reading the transfer date as the start would hand the club a fresh 60 days
+    and push every eligible date two months too late.
+    """
+    stint = stats._current_stint(_events(
+        ("2026-06-30", "San Diego Padres placed RHP Jason Adam on the 15-day injured "
+                       "list retroactive to June 30, 2026. Right shoulder strain."),
+        ("2026-08-03", "San Diego Padres transferred RHP Jason Adam from the 15-day "
+                       "injured list to the 60-day injured list. Right shoulder strain."),
+    ))
+    assert stint["placed"] == "2026-06-30"
+    assert stint["days"] == 60
+    assert stint["injury"] == "Right shoulder strain"
+
+
+def test_activation_closes_the_stint():
+    stint = stats._current_stint(_events(
+        ("2026-04-10", "Padres placed RHP A B on the 15-day injured list. Elbow."),
+        ("2026-05-01", "Padres activated RHP A B from the 15-day injured list."),
+    ))
+    assert stint is None
+
+
+def test_latest_stint_wins_after_a_return_and_reinjury():
+    stint = stats._current_stint(_events(
+        ("2026-06-03", "Padres placed RHP A B on the 15-day injured list. Right knee."),
+        ("2026-07-29", "Padres activated RHP A B from the 15-day injured list."),
+        ("2026-08-25", "Padres placed RHP A B on the 15-day injured list retroactive "
+                       "to August 25, 2026. Right shoulder impingement."),
+    ))
+    assert stint["placed"] == "2026-08-25"
+    assert stint["injury"] == "Right shoulder impingement"
+
+
+def test_rehab_assignment_attaches_to_the_open_stint():
+    stint = stats._current_stint(_events(
+        ("2026-06-30", "Padres placed RHP A B on the 15-day injured list. Shoulder."),
+        ("2026-09-13", "San Diego Padres sent RHP A B on a rehab assignment to "
+                       "El Paso Chihuahuas."),
+    ))
+    assert stint["rehab"] == {"started": "2026-09-13", "club": "El Paso Chihuahuas"}
+
+
+def test_transfer_without_a_placement_is_flagged_for_estimation():
+    """Players acquired while hurt have no placement row in their new club's feed."""
+    stint = stats._current_stint(_events(
+        ("2026-08-24", "Padres transferred RHP A B from the 15-day injured list to "
+                       "the 60-day injured list. Right elbow inflammation."),
+    ))
+    assert stint["placed"] is None
+    assert stint["placed_estimated"] is True
+    assert stint["days"] == 60
+
+
+@pytest.mark.parametrize("eligible,expected", [
+    ("2026-09-20", "regular"),
+    ("2026-09-27", "regular"),
+    ("2026-09-28", "postseason"),
+    ("2026-10-31", "postseason"),
+    ("2026-11-01", "next_season"),
+])
+def test_return_window_splits_on_the_season_boundaries(eligible, expected):
+    info = {"regular_end": "2026-09-27", "post_end": "2026-10-31"}
+    day = stats._parse_day(eligible)
+    assert stats._return_window(day, "D60", info) == expected
+
+
+def test_season_ending_list_is_always_next_season():
+    info = {"regular_end": "2026-09-27", "post_end": "2026-10-31"}
+    assert stats._return_window(None, "ILF", info) == "next_season"
+
+
+def test_readiness_separates_eligibility_from_game_readiness():
+    """An expired IL clock does not mean a player is close to playing."""
+    today = stats.date(2026, 9, 14)
+    eligible = stats.date(2026, 5, 24)
+    assert stats._readiness("D60", eligible, today, None,
+                            "2024-09-26", 2024, 2026) == "stalled"
+    assert stats._readiness("D10", eligible, today, None,
+                            "2026-09-10", 2026, 2026) == "eligible"
+    assert stats._readiness("D60", stats.date(2026, 10, 29), today, None,
+                            "2026-08-29", 2026, 2026) == "on_clock"
+    rehab = {"expired": False}
+    assert stats._readiness("D60", eligible, today, rehab,
+                            "2024-09-26", 2024, 2026) == "rehabbing"
+    assert stats._readiness("ILF", None, today, None, None, None, 2026) == "shut_down"
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ("Right hamstring strain", "hamstring strain"),
+    ("Left hamstring strain", "hamstring strain"),
+    ("Right elbow inflammation.", "elbow inflammation"),
+    ("  Left  oblique   strain ", "oblique strain"),
+])
+def test_diagnosis_normalization_drops_laterality(raw, expected):
+    """Side of the body does not change how long an injury lasts."""
+    assert stats._normalize_diagnosis(raw) == expected
+
+
+def test_duration_gating_rejects_broad_diagnoses(monkeypatch):
+    """A category whose spread dwarfs its median says nothing worth showing.
+
+    'Elbow inflammation' runs 22-115 days around a median of 45 - everything
+    from a cortisone shot to surgery - so quoting it would invent precision the
+    data does not have.
+    """
+    spells = ([("hamstring strain", d) for d in
+               [15, 18, 20, 22, 22, 24, 25, 28, 30, 36] * 3] +
+              [("elbow inflammation", d) for d in
+               [10, 15, 22, 30, 45, 70, 90, 115, 200, 300] * 3])
+    monkeypatch.setattr(stats, "_completed_spells", lambda season: spells)
+    monkeypatch.setattr(stats, "DURATION_SEASONS", 1)
+
+    norms = stats._build_duration_norms()
+    assert "hamstring strain" in norms
+    assert "elbow inflammation" not in norms
+    assert norms["hamstring strain"]["low"] < norms["hamstring strain"]["high"]
+
+
+def test_duration_gating_requires_a_real_sample(monkeypatch):
+    monkeypatch.setattr(stats, "_completed_spells",
+                        lambda season: [("rare thing", 20)] * 5)
+    monkeypatch.setattr(stats, "DURATION_SEASONS", 1)
+    assert stats._build_duration_norms() == {}
+
+
+def test_typical_absence_places_the_current_stint(monkeypatch):
+    monkeypatch.setattr(stats, "_duration_norms", lambda: {
+        "hamstring strain": {"median": 22, "low": 15, "high": 36, "sample": 240},
+    })
+    assert stats._typical_absence("Right hamstring strain", 9)["standing"] == "early"
+    assert stats._typical_absence("Right hamstring strain", 29)["standing"] == "within"
+    assert stats._typical_absence("Right hamstring strain", 90)["standing"] == "beyond"
+    # An unknown or over-broad diagnosis reports nothing rather than guessing.
+    assert stats._typical_absence("Right elbow inflammation", 40) is None
+    assert stats._typical_absence(None, 40) is None
+
+
+def test_duration_norms_never_block_the_request(monkeypatch):
+    """Building norms reads five seasons of transactions, which takes about
+    twenty seconds. It must run off the request thread or the tab hangs."""
+    import threading
+    built_on = []
+    done = threading.Event()
+
+    def fake_build():
+        built_on.append(threading.current_thread())
+        done.set()
+        return {"hamstring strain": {"median": 22, "low": 15, "high": 36,
+                                     "sample": 240}}
+
+    monkeypatch.setattr(stats, "_build_duration_norms", fake_build)
+    monkeypatch.setattr(stats, "_norms_warming", False)
+    stats.cache.clear()
+
+    # The cold call returns nothing at once rather than waiting on the build.
+    assert stats._duration_norms() == {}
+
+    assert done.wait(5), "background warm never ran"
+    assert built_on[0] is not threading.current_thread(), \
+        "norms were built on the calling thread"
+
+    # Once warm, the cached value is what callers get.
+    assert "hamstring strain" in stats._duration_norms()
+
+
+@live
+def test_injury_report_is_internally_consistent(client):
+    body = client.get("/api/injuries?team=padres").get_json()
+    assert body["team"]["slug"] == "padres"
+    assert sum(body["counts"].values()) == len(body["players"])
+
+    for player in body["players"]:
+        assert player["window"] in ("regular", "postseason", "next_season", "unknown")
+        assert player["readiness"] in stats.READINESS_LABEL
+        assert player["return_detail"]
+        # An eligible date is always the placement date plus the list's length,
+        # which is the whole basis for the tab's claims.
+        if player["eligible_date"] and player["placed_date"]:
+            placed = stats._parse_day(player["placed_date"])
+            eligible = stats._parse_day(player["eligible_date"])
+            assert (eligible - placed).days == player["il_days"]
+
+
+@live
+def test_injury_report_excludes_healthy_players(client):
+    body = client.get("/api/injuries?team=padres").get_json()
+    hurt = {p["player_id"] for p in body["players"]}
+    active = client.get("/api/roster?team=padres").get_json()
+    playing = {p["player_id"] for p in active["batters"] + active["pitchers"]}
+    assert not (hurt & playing), "a player cannot be on the active roster and the IL"
 
 
 @live

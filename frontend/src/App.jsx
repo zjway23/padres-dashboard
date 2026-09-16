@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { onAuthStateChanged, signOut } from "firebase/auth"
-import { auth } from "./firebase"
+import { auth, firebaseReady } from "./firebase"
 
 import Login from "./components/Login"
 import Settings from "./components/Settings"
@@ -10,8 +10,9 @@ import Standings, { DivisionTable } from "./components/Standings"
 import RosterTable from "./components/RosterTable"
 import FavoritesTab from "./components/FavoritesTab"
 import Bullpen from "./components/Bullpen"
+import InjuryWatch from "./components/InjuryWatch"
 import PlayoffPushTab from "./components/PlayoffPushTab"
-import { Card, ErrorNote, Skeleton } from "./components/ui"
+import { Card, Empty, ErrorNote, Skeleton } from "./components/ui"
 
 import { useApi, useStoredState } from "./hooks/useApi"
 import { api } from "./lib/api"
@@ -23,6 +24,7 @@ const TABS = [
   { key: "team", label: "Team" },
   { key: "favorites", label: "Favorites" },
   { key: "bullpen", label: "Bullpen" },
+  { key: "injuries", label: "Injury Watch" },
   { key: "playoff", label: "Playoff Push" },
 ]
 
@@ -40,9 +42,34 @@ function normalizeTab(value) {
 const POLL_LIVE = 10000
 const POLL_IDLE = 120000
 
+// Guest session. Everything driven by a team - scores, standings, roster,
+// bullpen, injuries, the playoff race - works without an account. Only
+// favorites and cross-device preferences need a real uid, and they read as
+// empty rather than breaking, so a visitor who never signs in still gets the
+// whole dashboard rather than a login screen they have to get past first. A
+// build with no Firebase config starts here too, since sign-in is not on offer.
+const GUEST_USER = { uid: "", displayName: "Guest", email: null, isGuest: true }
+
+// Remembered so a reload doesn't bounce the guest back to the login screen.
+const GUEST_KEY = "guestMode"
+
+function storedGuest() {
+  if (!firebaseReady) return true
+  try { return localStorage.getItem(GUEST_KEY) === "1" } catch { return false }
+}
+
 export default function App() {
-  const [user, setUser] = useState(null)
-  const [authLoading, setAuthLoading] = useState(true)
+  // With no Firebase config there is nothing to wait for and nobody to sign in,
+  // so start settled on a guest session rather than flashing a loader.
+  const [authUser, setAuthUser] = useState(null)
+  const [guest, setGuest] = useState(storedGuest)
+  // A returning guest is known to be signed out, so there is no listener to
+  // wait on before rendering - only a first-time visitor sees the loader.
+  const [authLoading, setAuthLoading] = useState(firebaseReady && !storedGuest())
+
+  // A real account always wins over the guest session it was started from.
+  const user = authUser || (guest ? GUEST_USER : null)
+  const isGuest = Boolean(user?.isGuest)
 
   const [favoriteTeam, setFavoriteTeam] = useStoredState("favoriteTeam", "padres")
   const [timezone, setTimezone] = useStoredState("timezone", "America/Los_Angeles")
@@ -55,27 +82,34 @@ export default function App() {
   useEffect(() => { applyTeamTheme(favoriteTeam) }, [favoriteTeam])
 
   // ── Auth & stored preferences ──────────────────────────────────────────────
-  useEffect(() => onAuthStateChanged(auth, async (firebaseUser) => {
-    setUser(firebaseUser)
-    if (firebaseUser) {
-      try {
-        const prefs = await api("/api/preferences", { params: { uid: firebaseUser.uid } })
-        if (prefs.favorite_team) setFavoriteTeam(prefs.favorite_team)
-        if (prefs.timezone) setTimezone(prefs.timezone)
-        if (prefs.default_tab) {
-          const tab = normalizeTab(prefs.default_tab)
-          setDefaultTab(tab)
-          setActiveTab(tab)
+  useEffect(() => {
+    if (!firebaseReady) return undefined
+    return onAuthStateChanged(auth, async (firebaseUser) => {
+      setAuthUser(firebaseUser)
+      if (firebaseUser) {
+        // Signing in supersedes guest mode, so the flag shouldn't outlive it.
+        setGuest(false)
+        try { localStorage.removeItem(GUEST_KEY) } catch { /* private mode */ }
+        try {
+          const prefs = await api("/api/preferences", { params: { uid: firebaseUser.uid } })
+          if (prefs.favorite_team) setFavoriteTeam(prefs.favorite_team)
+          if (prefs.timezone) setTimezone(prefs.timezone)
+          if (prefs.default_tab) {
+            const tab = normalizeTab(prefs.default_tab)
+            setDefaultTab(tab)
+            setActiveTab(tab)
+          }
+        } catch {
+          // Preferences are a convenience; local values already cover this session.
         }
-      } catch {
-        // Preferences are a convenience; local values already cover this session.
       }
-    }
-    setAuthLoading(false)
-  }), [setFavoriteTeam, setTimezone, setDefaultTab])
+      setAuthLoading(false)
+    })
+  }, [setFavoriteTeam, setTimezone, setDefaultTab])
 
+  // Guests have no uid to save against; their choices stay in this browser.
   const savePreference = useCallback((patch) => {
-    if (!user) return
+    if (!user || user.isGuest) return
     api("/api/preferences", { method: "POST", body: { uid: user.uid, ...patch } })
       .catch(() => { /* stored locally regardless */ })
   }, [user])
@@ -104,7 +138,7 @@ export default function App() {
 
   const favorites = useApi("/api/favorites", {
     params: { uid: user?.uid },
-    enabled: Boolean(user),
+    enabled: Boolean(user) && !isGuest,
     keepPrevious: true,
   })
 
@@ -120,8 +154,26 @@ export default function App() {
     setSettingsOpen(false)
   }
 
+  const continueAsGuest = useCallback(() => {
+    try { localStorage.setItem(GUEST_KEY, "1") } catch { /* private mode */ }
+    setGuest(true)
+  }, [])
+
+  // Leaving guest mode drops back to the login screen. With no Firebase config
+  // there is nothing to drop back to, so the option isn't offered in that build.
+  const leaveGuest = useCallback(() => {
+    try { localStorage.removeItem(GUEST_KEY) } catch { /* private mode */ }
+    setGuest(false)
+  }, [])
+
+  const handleLogout = useCallback(() => {
+    setSettingsOpen(false)
+    leaveGuest()
+    if (firebaseReady && auth.currentUser) signOut(auth)
+  }, [leaveGuest])
+
   const toggleFavorite = useCallback(async (player) => {
-    if (!user) return
+    if (!user || user.isGuest) return
     await api("/api/favorites", {
       method: "POST",
       body: {
@@ -146,7 +198,7 @@ export default function App() {
     )
   }
 
-  if (!user) return <Login />
+  if (!user) return <Login onContinueAsGuest={continueAsGuest} />
 
   const record = dashboard.data?.division?.teams?.find(t => t.team_id === team.teamId)
 
@@ -164,7 +216,7 @@ export default function App() {
         <span className="app-header__spacer" />
         <SearchPanel
           isFavorite={id => favoriteIds.has(id)}
-          onToggleFavorite={toggleFavorite}
+          onToggleFavorite={isGuest ? null : toggleFavorite}
         />
         <button
           className="btn btn--icon"
@@ -179,15 +231,34 @@ export default function App() {
       {settingsOpen && (
         <Settings
           user={user}
+          isGuest={isGuest}
+          canSignIn={firebaseReady}
           favoriteTeam={favoriteTeam}
           onTeamChange={handleTeamChange}
           onClose={() => setSettingsOpen(false)}
-          onLogout={() => signOut(auth)}
+          onLogout={handleLogout}
           timezone={timezone}
           onTimezoneChange={(tz) => { setTimezone(tz); savePreference({ timezone: tz }) }}
           defaultTab={defaultTab}
           onDefaultTabChange={(tab) => { setDefaultTab(tab); savePreference({ default_tab: tab }) }}
         />
+      )}
+
+      {isGuest && (
+        <div className={`config-note${firebaseReady ? " config-note--info" : ""}`}>
+          <span aria-hidden="true">●</span>
+          <span>
+            Browsing as a guest — scores, standings, roster, bullpen, injuries and
+            the playoff race all work. Your team, time zone and start tab are kept
+            in this browser only.{" "}
+            {firebaseReady
+              ? "Sign in to save favorites and carry your preferences between devices."
+              : <>Sign-in is off in this build; add <code>frontend/.env.local</code> to enable it.</>}
+          </span>
+          {firebaseReady && (
+            <button className="btn config-note__action" onClick={leaveGuest}>Sign in</button>
+          )}
+        </div>
       )}
 
       <nav className="tabs" aria-label="Sections">
@@ -234,7 +305,7 @@ export default function App() {
             batters={roster.data?.batters || []}
             pitchers={roster.data?.pitchers || []}
             loading={roster.loading && !roster.data}
-            onToggleFavorite={toggleFavorite}
+            onToggleFavorite={isGuest ? null : toggleFavorite}
             season={dashboard.data?.season || ""}
           />
           <Card title={`${team.division} standings`}>
@@ -247,17 +318,23 @@ export default function App() {
         </div>
       )}
 
-      {activeTab === "favorites" && (
+      {activeTab === "favorites" && (isGuest ? (
+        <GuestFavorites onSignIn={firebaseReady ? leaveGuest : null} />
+      ) : (
         <FavoritesTab
           favorites={favorites.data || []}
           loading={favorites.loading && !favorites.data}
           onToggleFavorite={toggleFavorite}
           timezone={timezone}
         />
-      )}
+      ))}
 
       {activeTab === "bullpen" && (
         <Bullpen team={favoriteTeam} teamName={team.shortName} />
+      )}
+
+      {activeTab === "injuries" && (
+        <InjuryWatch team={favoriteTeam} teamName={team.shortName} />
       )}
 
       {activeTab === "playoff" && (
@@ -270,5 +347,23 @@ export default function App() {
         />
       )}
     </div>
+  )
+}
+
+// Favorites hang off a uid, so there is nothing for a guest to show here.
+// Saying why beats an empty list that looks broken.
+function GuestFavorites({ onSignIn }) {
+  return (
+    <Card title="Favorites">
+      <Empty>
+        Following players needs an account — favorites are saved against your
+        sign-in, not this browser.
+      </Empty>
+      {onSignIn && (
+        <div style={{ display: "flex", justifyContent: "center", paddingBottom: 26 }}>
+          <button className="btn btn--accent" onClick={onSignIn}>Sign in with Google</button>
+        </div>
+      )}
+    </Card>
   )
 }

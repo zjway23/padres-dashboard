@@ -4,10 +4,13 @@ Everything here reads through `mlb.get_json`, so results are cached and no route
 fans out into per-player requests.
 """
 
-from datetime import timedelta
+import re
+import statistics
+import threading
+from datetime import date, timedelta
 
 from mlb import (
-    BASE_V11, DIVISION_NAMES, TTL_GAMELOG, TTL_LIVE, TTL_PLAYS, TTL_ROSTER,
+    BASE_V11, cache, DIVISION_NAMES, TTL_GAMELOG, TTL_LIVE, TTL_PLAYS, TTL_ROSTER,
     TTL_SCHEDULE, TTL_STANDINGS, current_season, fmt, get_json, league_id_for,
     resolve_team_id, season_info, team_meta, team_name, today_et,
 )
@@ -224,12 +227,8 @@ def bullpen(team_id):
         last_date = recent[-1]["date"] if recent else None
         rest_days = None
         if last_date:
-            try:
-                from datetime import date as _d
-                y, m, dd = (int(x) for x in last_date.split("-"))
-                rest_days = (today - _d(y, m, dd)).days
-            except Exception:
-                rest_days = None
+            parsed = _parse_day(last_date)
+            rest_days = (today - parsed).days if parsed else None
 
         def pitches_within(days):
             cutoff = fmt(today - timedelta(days=days))
@@ -275,6 +274,677 @@ def bullpen(team_id):
 
     order = {"available": 0, "caution": 1, "unavailable": 2}
     out.sort(key=lambda p: (order[p["status"]], float(p["era"]) if p["era"] else 99))
+    return out
+
+
+# ─── Injury report ────────────────────────────────────────────────────────────
+
+# Roster status codes that mean "hurt", mapped to the minimum stay the list
+# imposes. ILF ("Injured - Full Season") has no clock - the year is already over.
+IL_STAY = {"D7": 7, "D10": 10, "D15": 15, "D60": 60, "ILF": None}
+
+IL_LABEL = {"D7": "7-day IL", "D10": "10-day IL", "D15": "15-day IL",
+            "D60": "60-day IL", "ILF": "Season-ending IL"}
+
+# Which roster views to scan. The 40-man covers everyone under contract, the
+# depth chart adds players the club still slots at a position, and fullSeason
+# remembers anyone who appeared this year. `fullRoster` is deliberately left
+# out: it drags in the whole farm system, where a minor-league 7-day IL stint
+# is noise rather than news.
+INJURY_ROSTERS = ("40Man", "depthChart", "fullSeason")
+
+# A rehab assignment is capped by rule: 30 days for pitchers, 20 for hitters.
+REHAB_LIMIT = {"pitching": 30, "hitting": 20}
+
+_PLACED_RE = re.compile(r"placed .*? on the (\d+)-day injured list", re.I)
+_TRANSFER_RE = re.compile(r"transferred .*? to the (\d+)-day injured list", re.I)
+_ACTIVATED_RE = re.compile(r"\bactivated\b", re.I)
+_REHAB_RE = re.compile(r"on a rehab assignment to (.+?)\.?$", re.I)
+# Placements carry the diagnosis as a trailing sentence:
+# "... on the 10-day injured list retroactive to May 31, 2026. Right hip inflammation."
+_DIAGNOSIS_RE = re.compile(r"injured list(?: retroactive to [^.]*)?\.\s*(.+?)\.?\s*$", re.I)
+
+_PEOPLE_FIELDS = ",".join([
+    "people", "id", "fullName", "primaryPosition", "abbreviation",
+    "stats", "type", "displayName", "group", "splits", "date", "season", "stat",
+    "gamesPlayed", "atBats", "runs", "hits", "doubles", "triples", "homeRuns",
+    "rbi", "baseOnBalls", "strikeOuts", "stolenBases", "caughtStealing",
+    "avg", "obp", "slg", "ops", "era", "inningsPitched", "whip", "wins",
+    "losses", "saves", "holds",
+])
+
+
+def _parse_day(value):
+    """'2026-06-30' -> date. Returns None for nulls and malformed values."""
+    try:
+        y, m, d = (int(part) for part in str(value).split("-"))
+        return date(y, m, d)
+    except Exception:
+        return None
+
+
+def _short_day(value):
+    """'2026-06-30' -> 'Jun 30'. Dates land in sentences here, not just columns."""
+    day = _parse_day(value) if not isinstance(value, date) else value
+    # Built by hand rather than with %-d, which is not portable off glibc.
+    return f"{day.strftime('%b')} {day.day}" if day else ""
+
+
+def _injured_roster_entries(team_id):
+    """Every hurt player the club still carries, merged across roster views.
+
+    No single roster type is enough: a 60-day player drops off the depth chart,
+    a just-acquired player may not be on it yet, and fullSeason is the only view
+    that remembers someone who played earlier in the year.
+    """
+    season = current_season()
+    found = {}
+    for roster_type in INJURY_ROSTERS:
+        try:
+            data = get_json(f"/teams/{team_id}/roster",
+                            {"rosterType": roster_type, "season": season},
+                            ttl=TTL_ROSTER)
+        except Exception:
+            continue
+        for entry in data.get("roster", []):
+            status = entry.get("status") or {}
+            code = status.get("code", "")
+            if code not in IL_STAY:
+                continue
+            person = entry.get("person", {})
+            pid = person.get("id")
+            if pid is None:
+                continue
+            known = found.get(pid)
+            # Prefer the longest list any view reports: a player transferred to
+            # the 60-day can still read as 15-day on a roster view that lagged.
+            if known and (IL_STAY[known["il_code"]] or 999) >= (IL_STAY[code] or 999):
+                continue
+            found[pid] = {
+                "player_id": pid,
+                "name": person.get("fullName", "Unknown"),
+                "position": entry.get("position", {}).get("abbreviation", ""),
+                "il_code": code,
+                "il_label": IL_LABEL.get(code, status.get("description", "Injured")),
+                "il_days": IL_STAY[code],
+            }
+    return found
+
+
+def _season_transactions(team_id):
+    """This season's transactions for one club, grouped by player.
+
+    A single request covers the whole year, which is what makes the injury
+    timeline affordable: the alternative is one lookup per injured player.
+    """
+    season = current_season()
+    data = get_json("/transactions", {
+        "teamId": team_id,
+        "startDate": f"{season}-01-01",
+        "endDate": fmt(today_et()),
+    }, ttl=TTL_ROSTER)
+
+    by_player = {}
+    for tx in data.get("transactions", []):
+        pid = (tx.get("person") or {}).get("id")
+        text = tx.get("description") or ""
+        if pid is None or not text:
+            continue
+        # Retroactive placements backdate the IL clock, and `resolutionDate`
+        # is where the API records that. Reading `date` would lose the days a
+        # player was already out before the paperwork landed.
+        day = tx.get("resolutionDate") or tx.get("effectiveDate") or tx.get("date")
+        by_player.setdefault(pid, []).append({"date": day, "description": text})
+
+    for events in by_player.values():
+        events.sort(key=lambda e: e["date"] or "")
+        # The feed repeats some entries (a trade shows up once per player
+        # involved); identical text on the same day is the same event.
+        seen, unique = set(), []
+        for event in events:
+            key = (event["date"], event["description"])
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(event)
+        events[:] = unique
+    return by_player
+
+
+def _current_stint(events):
+    """Replay a player's transactions down to the IL stint they're still on.
+
+    A placement opens a stint; a transfer to the 60-day extends it without
+    restarting the clock (60-day time counts from the original placement date);
+    a rehab assignment attaches to it; an activation closes it.
+    """
+    stint = None
+    for event in events:
+        text = event["description"]
+        placed = _PLACED_RE.search(text)
+        transferred = _TRANSFER_RE.search(text)
+        diagnosis = _DIAGNOSIS_RE.search(text)
+
+        if placed:
+            stint = {"placed": event["date"], "days": int(placed.group(1)),
+                     "injury": diagnosis.group(1) if diagnosis else None,
+                     "transferred": None, "rehab": None, "placed_estimated": False}
+        elif transferred:
+            if stint is None:
+                # Acquired while already hurt, so the placement belongs to the
+                # other club's feed. The start date gets estimated downstream.
+                stint = {"placed": None, "days": None, "injury": None,
+                         "transferred": None, "rehab": None, "placed_estimated": True}
+            stint["days"] = int(transferred.group(1))
+            stint["transferred"] = event["date"]
+            if diagnosis:
+                stint["injury"] = diagnosis.group(1)
+        elif _ACTIVATED_RE.search(text):
+            stint = None
+        elif stint is not None:
+            rehab = _REHAB_RE.search(text)
+            if rehab:
+                stint["rehab"] = {"started": event["date"], "club": rehab.group(1)}
+    return stint
+
+
+def _people_stats(player_ids, season, types="[season,gameLog,yearByYear]"):
+    """Hydrated stat bundle for a batch of players in one request."""
+    if not player_ids:
+        return {}
+    people = {}
+    ids = sorted(player_ids)
+    for i in range(0, len(ids), 40):
+        chunk = ids[i:i + 40]
+        try:
+            data = get_json("/people", {
+                "personIds": ",".join(str(pid) for pid in chunk),
+                "hydrate": (f"stats(group=[hitting,pitching],type={types},"
+                            f"season={season},gameType=R)"),
+                "fields": _PEOPLE_FIELDS,
+            }, ttl=TTL_ROSTER)
+        except Exception:
+            continue
+        for person in data.get("people", []):
+            people[person.get("id")] = person
+    return people
+
+
+def _stat_blocks(person, wanted):
+    for block in person.get("stats") or []:
+        if block.get("type", {}).get("displayName") == wanted:
+            yield block
+
+
+def _last_game_date(person):
+    dates = [split.get("date") for block in _stat_blocks(person, "gameLog")
+             for split in block.get("splits") or [] if split.get("date")]
+    return max(dates) if dates else None
+
+
+def _last_season_played(person):
+    seasons = [int(split["season"]) for block in _stat_blocks(person, "yearByYear")
+               for split in block.get("splits") or []
+               if split.get("season") and (_num(split.get("stat", {}).get("gamesPlayed")) or 0) > 0]
+    return max(seasons) if seasons else None
+
+
+def _season_line(person, group):
+    for block in _stat_blocks(person, "season"):
+        if block.get("group", {}).get("displayName") != group:
+            continue
+        splits = block.get("splits") or []
+        if splits:
+            return splits[0].get("stat", {})
+    return {}
+
+
+def _team_game_days(team_id):
+    """Dates of the club's completed regular-season games, ascending.
+
+    Used to answer 'how many games has he missed', which is the number fans
+    actually track - calendar days out mean little across an off day.
+    """
+    info = season_info()
+    try:
+        data = get_json("/schedule", {
+            "sportId": 1,
+            "teamId": team_id,
+            "gameType": "R",
+            "startDate": info["regular_start"],
+            "endDate": fmt(today_et()),
+            "fields": "dates,date,games,status,detailedState",
+        }, ttl=TTL_SCHEDULE)
+    except Exception:
+        return []
+    days = []
+    for day in data.get("dates", []):
+        for game in day.get("games", []):
+            if game.get("status", {}).get("detailedState") in FINAL_STATES:
+                days.append(day.get("date"))
+    return sorted(d for d in days if d)
+
+
+def _return_window(eligible, il_code, info):
+    """Bucket an eligible-return date into the part of the calendar it lands in."""
+    if il_code == "ILF" or eligible is None:
+        return "next_season" if il_code == "ILF" else "unknown"
+    day = fmt(eligible)
+    if day <= (info.get("regular_end") or ""):
+        return "regular"
+    if day <= (info.get("post_end") or ""):
+        return "postseason"
+    return "next_season"
+
+
+# The windows are floors, not forecasts: the IL fixes the earliest date a
+# player *can* be activated and says nothing about when a club will do it.
+WINDOW_LABEL = {
+    "regular": "Can return this regular season",
+    "postseason": "Postseason at the earliest",
+    "next_season": "Not until next season",
+    "unknown": "Return window unclear",
+}
+
+# How close a player is to actually playing, which is a different question from
+# whether his IL clock has run out. A pitcher two years into an elbow rebuild is
+# "eligible" the same way a hamstring strain is, and the tab should not say so.
+READINESS_LABEL = {
+    "rehabbing": "On a rehab assignment",
+    "eligible": "Eligible to be activated",
+    "on_clock": "IL clock still running",
+    "shut_down": "Shut down for the season",
+    "stalled": "Eligible, but no game action",
+}
+
+# Past this many days without an appearance, "eligible" stops being the useful
+# fact about a player and "still not playing" starts being it.
+STALLED_DAYS = 45
+
+
+def _readiness(il_code, eligible, today, rehab, last_played, last_played_season, season):
+    if il_code == "ILF":
+        return "shut_down"
+    if rehab and not rehab["expired"]:
+        return "rehabbing"
+    if eligible is None or eligible > today:
+        return "on_clock"
+    if last_played_season != season:
+        return "stalled"
+    gap = _parse_day(last_played)
+    if gap and (today - gap).days >= STALLED_DAYS:
+        return "stalled"
+    return "eligible"
+
+
+def injury_report(team_id):
+    """Who's hurt, since when, and the earliest date they can be back.
+
+    Three public sources get stitched together: roster status says *who* is on
+    which list, the transaction feed says *when* they went on it and *why*, and
+    the game log says when they last played. The return date is then derived
+    from the IL's own rules rather than guessed - a 60-day stint that began on
+    June 30 cannot end before August 29, whatever the club says publicly.
+    """
+    entries = _injured_roster_entries(team_id)
+    info = season_info()
+    season = info["season"]
+    today = today_et()
+    transactions = _season_transactions(team_id)
+    people = _people_stats(entries.keys(), season)
+    game_days = _team_game_days(team_id)
+
+    # Players with no games this year need a prior season's log for an exact
+    # last-played date. Batch them by season so this stays one request each.
+    backfill = {}
+    for pid, person in people.items():
+        if _last_game_date(person):
+            continue
+        year = _last_season_played(person)
+        if year and year < season:
+            backfill.setdefault(year, []).append(pid)
+    prior = {}
+    for year, ids in sorted(backfill.items(), reverse=True)[:3]:
+        for pid, person in _people_stats(ids, year, types="gameLog").items():
+            prior[pid] = (_last_game_date(person), year)
+
+    players = []
+    for pid, entry in entries.items():
+        person = people.get(pid, {})
+        position = entry["position"] or (person.get("primaryPosition") or {}).get("abbreviation", "")
+        group = "pitching" if position == "P" else "hitting"
+
+        stint = _current_stint(transactions.get(pid) or []) or {
+            "placed": None, "days": None, "injury": None,
+            "transferred": None, "rehab": None, "placed_estimated": True,
+        }
+
+        last_played = _last_game_date(person)
+        last_played_season = season if last_played else None
+        if not last_played and pid in prior:
+            last_played, last_played_season = prior[pid]
+
+        # Roster status is the current truth; the transaction feed can lag a
+        # transfer by a day. Either way the clock runs from the placement, so a
+        # transfer to the 60-day never buys the club a fresh 60 days.
+        il_days = None if entry["il_code"] == "ILF" else (entry["il_days"] or stint["days"])
+        placed = _parse_day(stint["placed"])
+        placed_estimated = stint["placed_estimated"] or placed is None
+        if placed is None and last_played and last_played_season == season:
+            # A stint always starts the day after the last game played.
+            placed = _parse_day(last_played) + timedelta(days=1)
+
+        eligible = placed + timedelta(days=il_days) if (placed and il_days) else None
+        window = _return_window(eligible, entry["il_code"], info)
+
+        rehab = None
+        if stint["rehab"]:
+            started = _parse_day(stint["rehab"]["started"])
+            limit = REHAB_LIMIT[group]
+            deadline = started + timedelta(days=limit) if started else None
+            rehab = {
+                "started": stint["rehab"]["started"],
+                "club": stint["rehab"]["club"],
+                "day": (today - started).days + 1 if started else None,
+                "max_days": limit,
+                # Rehab has to end by rule, which makes it the tightest public
+                # bound on a return date there is - until it lapses, which
+                # happens when an assignment is reset or quietly cut short.
+                "deadline": fmt(deadline) if deadline else None,
+                "expired": bool(deadline and deadline < today),
+            }
+
+        days_out = (today - placed).days if placed else None
+        readiness = _readiness(entry["il_code"], eligible, today, rehab,
+                               last_played, last_played_season, season)
+
+        missed = None
+        if game_days:
+            since = last_played if (last_played and last_played_season == season) else None
+            missed = (len([d for d in game_days if d > since]) if since
+                      else len(game_days))
+
+        players.append({
+            "player_id": pid,
+            "name": entry["name"],
+            "position": position,
+            "group": group,
+            "team_id": team_id,
+            "team": team_name(team_id),
+            "il_code": entry["il_code"],
+            "il_label": entry["il_label"],
+            "il_days": il_days,
+            "injury": stint["injury"],
+            "placed_date": fmt(placed) if placed else None,
+            "placed_estimated": placed_estimated,
+            "transferred_date": stint["transferred"],
+            "days_out": days_out,
+            "games_missed": missed,
+            "last_played": last_played,
+            "last_played_season": last_played_season,
+            "eligible_date": fmt(eligible) if eligible else None,
+            "eligible_now": bool(eligible and eligible <= today),
+            "window": window,
+            "window_label": WINDOW_LABEL[window],
+            "readiness": readiness,
+            "readiness_label": READINESS_LABEL[readiness],
+            "return_detail": _return_detail(entry, eligible, today, rehab, readiness, window),
+            "rehab": rehab,
+            "typical_absence": _typical_absence(stint["injury"], days_out),
+            "season_line": _injury_stat_line(_season_line(person, group), group),
+            "timeline": [e for e in (transactions.get(pid) or [])
+                         if _is_injury_event(e["description"])][-6:],
+        })
+
+    order = {"regular": 0, "postseason": 1, "next_season": 2, "unknown": 3}
+    closeness = {"rehabbing": 0, "eligible": 1, "on_clock": 2, "stalled": 3,
+                 "shut_down": 4}
+    players.sort(key=lambda p: (order[p["window"]], closeness[p["readiness"]],
+                                p["eligible_date"] or "9999", p["name"]))
+
+    counts = {key: 0 for key in order}
+    for player in players:
+        counts[player["window"]] += 1
+
+    return {
+        "team": team_meta(team_id),
+        "season": season,
+        "as_of": fmt(today),
+        "regular_end": info.get("regular_end"),
+        "post_start": info.get("post_start"),
+        "post_end": info.get("post_end"),
+        "counts": counts,
+        "players": players,
+    }
+
+
+def _is_injury_event(text):
+    return bool(_PLACED_RE.search(text) or _TRANSFER_RE.search(text)
+                or _REHAB_RE.search(text) or _ACTIVATED_RE.search(text))
+
+
+def _return_detail(entry, eligible, today, rehab, readiness, window):
+    """One plain sentence about the return, precise wherever the data allows.
+
+    The IL gives a hard floor on the date and nothing above it, so this says
+    what is actually known - the earliest legal activation, and how close to
+    game-ready the player looks - rather than inventing a target date.
+    """
+    if readiness == "shut_down":
+        return "On the season-ending injured list; eligible again next season."
+    if eligible is None:
+        return "No placement date on file, so an eligible date can't be derived."
+
+    when = _short_day(eligible)
+
+    if readiness == "rehabbing":
+        opener = f"Eligible since {when}" if eligible <= today else f"Eligible {when}"
+        clock = (f"rehabbing with {rehab['club']} since {_short_day(rehab['started'])}, "
+                 f"an assignment that has to end by {_short_day(rehab['deadline'])}")
+        return f"{opener}; {clock}."
+
+    if readiness == "on_clock":
+        days = (eligible - today).days
+        soonest = f"Eligible {when}, {days} day{'' if days == 1 else 's'} from now"
+        if window == "next_season":
+            return f"{soonest} - past the end of the postseason, so not this year."
+        if window == "postseason":
+            return f"{soonest} - after the regular season ends, so October at best."
+        return f"{soonest}."
+
+    if readiness == "stalled":
+        lapsed = " The rehab assignment has since lapsed." if rehab else ""
+        # Surname only, and no pronoun: the transaction feed carries neither a
+        # pronoun nor a reliable one to infer.
+        who = entry["name"].split()[-1]
+        return (f"IL clock ran out {when}, but {who} has not appeared in a game "
+                f"since, so the {entry['il_label']} is no longer the limiting "
+                f"factor.{lapsed}")
+
+    return f"Eligible to be activated since {when} - waiting on the club."
+
+
+def _injury_stat_line(s, group):
+    """The season line to show beside an injured player, by stat group."""
+    if group == "pitching":
+        return {"games": _num(s.get("gamesPlayed")), "era": _rate(s.get("era")),
+                "ip": _rate(s.get("inningsPitched")), "whip": _rate(s.get("whip")),
+                "so": _num(s.get("strikeOuts")), "wins": _num(s.get("wins")),
+                "losses": _num(s.get("losses")), "saves": _num(s.get("saves")),
+                "holds": _num(s.get("holds"))}
+    return {"games": _num(s.get("gamesPlayed")), "avg": _rate(s.get("avg")),
+            "obp": _rate(s.get("obp")), "ops": _rate(s.get("ops")),
+            "hr": _num(s.get("homeRuns")), "rbi": _num(s.get("rbi")),
+            "hits": _num(s.get("hits")), "runs": _num(s.get("runs")),
+            "sb": _num(s.get("stolenBases"))}
+
+
+# ─── Historical injury durations ──────────────────────────────────────────────
+
+# How long comparable injuries have actually kept players out, measured from the
+# transaction feed: a placement opens a spell and the matching activation closes
+# it, so the gap is the real number of days missed.
+#
+# This is a base rate, never a prediction, and it is reported as the middle half
+# of past cases rather than a single date. Two limits decide where it is allowed
+# to appear at all, both enforced in `_duration_norms`:
+#
+#   - 19% of IL placements never end in an activation, so they contribute no
+#     measurable spell and are silently dropped. Every median is therefore
+#     optimistic, and the gap is worst for arm injuries.
+#   - Spread varies enormously by injury. Hamstring strains cluster (15-36 days
+#     around a median of 22); elbow inflammation does not (22-115 around 45).
+#     Quoting a midpoint for the second kind would invent precision that the
+#     data does not have.
+#
+# Requiring a tight interquartile range silences the stat exactly where it would
+# mislead, which happens to be the arm injuries people most want an answer for.
+DURATION_SEASONS = 5
+MIN_DURATION_SAMPLE = 25
+# Reject a category whose middle half is more than 1.5x its own median. Because
+# the range is what gets displayed - never a midpoint - a wide one documents its
+# own uncertainty honestly ("29-143 days" plainly says nobody knows). Past this
+# threshold even that stops being useful: "elbow inflammation" spans 22-115 days
+# around a median of 45, covering everything from a cortisone shot to surgery.
+MAX_SPREAD_RATIO = 1.5
+
+TTL_DURATIONS = 86400  # Historical base rates move on the order of weeks.
+
+_LATERALITY_RE = re.compile(r"\b(right|left|rt|lt)\b\s*", re.I)
+
+
+def _normalize_diagnosis(text):
+    """'Right hamstring strain' -> 'hamstring strain'.
+
+    Side of the body has no bearing on how long an injury lasts, and keeping it
+    would split every category into two half-sized ones.
+    """
+    if not text:
+        return None
+    cleaned = _LATERALITY_RE.sub("", text.lower().strip().rstrip("."))
+    return re.sub(r"\s+", " ", cleaned).strip() or None
+
+
+def _completed_spells(season):
+    """Every (diagnosis, days missed) pair the feed can resolve for one season."""
+    try:
+        data = get_json("/transactions", {
+            "startDate": f"{season}-01-01",
+            "endDate": f"{season}-12-31",
+        }, ttl=TTL_DURATIONS)
+    except Exception:
+        return []
+
+    events = {}
+    for tx in data.get("transactions", []):
+        pid = (tx.get("person") or {}).get("id")
+        text = tx.get("description") or ""
+        day = tx.get("resolutionDate") or tx.get("effectiveDate") or tx.get("date")
+        if pid is None or not text or not day:
+            continue
+        events.setdefault(pid, []).append((day, text))
+
+    spells = []
+    for player_events in events.values():
+        player_events.sort()
+        pending = None
+        for day, text in player_events:
+            if _PLACED_RE.search(text):
+                diagnosis = _DIAGNOSIS_RE.search(text)
+                pending = (day, _normalize_diagnosis(
+                    diagnosis.group(1) if diagnosis else None))
+            elif _ACTIVATED_RE.search(text) and pending:
+                start, diagnosis = pending
+                pending = None
+                if not diagnosis:
+                    continue
+                first, last = _parse_day(start), _parse_day(day)
+                if not first or not last:
+                    continue
+                days = (last - first).days
+                # A same-day round trip is paperwork, not an injury, and a spell
+                # longer than a year is almost always a mis-paired placement.
+                if 0 < days < 400:
+                    spells.append((diagnosis, days))
+    return spells
+
+
+def _build_duration_norms():
+    buckets = {}
+    current = current_season()
+    for season in range(current - DURATION_SEASONS + 1, current + 1):
+        for diagnosis, days in _completed_spells(season):
+            buckets.setdefault(diagnosis, []).append(days)
+
+    norms = {}
+    for diagnosis, values in buckets.items():
+        if len(values) < MIN_DURATION_SAMPLE:
+            continue
+        values.sort()
+        count = len(values)
+        median = statistics.median(values)
+        low, high = values[count // 4], values[(3 * count) // 4]
+        if not median or (high - low) / median > MAX_SPREAD_RATIO:
+            continue
+        norms[diagnosis] = {"median": int(median), "low": int(low),
+                            "high": int(high), "sample": count}
+    return norms
+
+
+_norms_guard = threading.Lock()
+_norms_warming = False
+
+
+def _warm_duration_norms():
+    global _norms_warming
+    try:
+        cache.get_or_set(("injury-durations", current_season()),
+                         TTL_DURATIONS, _build_duration_norms)
+    except Exception:
+        pass
+    finally:
+        with _norms_guard:
+            _norms_warming = False
+
+
+def _duration_norms():
+    """Days-missed norms per diagnosis, warmed off the request path.
+
+    Building these reads five seasons of league-wide transactions, which takes
+    about twenty seconds - far too long to sit in front of a page load. The
+    first caller therefore gets nothing and triggers a background build; every
+    caller after it reads the day-long cache. A tab that shows no historical
+    range for a few seconds is a much better failure than one that hangs.
+    """
+    global _norms_warming
+    hit = cache.get(("injury-durations", current_season()))
+    if hit is not None:
+        return hit
+    with _norms_guard:
+        if not _norms_warming:
+            _norms_warming = True
+            threading.Thread(target=_warm_duration_norms, daemon=True).start()
+    return {}
+
+
+def _typical_absence(injury, days_out):
+    """What comparable injuries have historically cost, or None when unknown."""
+    norm = _duration_norms().get(_normalize_diagnosis(injury))
+    if not norm:
+        return None
+    out = dict(norm)
+    out["label"] = f"{norm['low']}-{norm['high']} days"
+    # Placing the current absence against the distribution is the part that
+    # carries information: "past the usual range" is a real signal, and it is
+    # one the IL clock alone never gives.
+    if days_out is None:
+        out["standing"] = None
+    elif days_out > norm["high"]:
+        out["standing"] = "beyond"
+    elif days_out >= norm["low"]:
+        out["standing"] = "within"
+    else:
+        out["standing"] = "early"
     return out
 
 

@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
+from werkzeug.exceptions import HTTPException
 
 import stats
 from mlb import (TEAMS, UpstreamError, cache, current_season, resolve_team_id,
@@ -109,6 +110,12 @@ def handle_upstream(exc):
 
 @app.errorhandler(Exception)
 def handle_unexpected(exc):
+    # Werkzeug routing errors land here too. Reporting a missing route or a
+    # wrong method as a 500 hides the real problem: a client calling an
+    # endpoint this build doesn't have would be told the server had crashed.
+    if isinstance(exc, HTTPException):
+        return jsonify({"error": exc.name.lower().replace(" ", "_"),
+                        "message": exc.description}), exc.code
     app.logger.exception("Unhandled error on %s", request.path)
     return jsonify({"error": "internal", "message": str(exc)}), 500
 
@@ -246,6 +253,12 @@ def roster_api():
 @app.route("/api/bullpen")
 def bullpen_api():
     return jsonify(stats.bullpen(team_param()))
+
+
+@app.route("/api/injuries")
+def injuries_api():
+    """Who's hurt, and the earliest date each is eligible to be activated."""
+    return jsonify(stats.injury_report(team_param()))
 
 
 # ─── Players ──────────────────────────────────────────────────────────────────

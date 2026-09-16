@@ -84,6 +84,9 @@ export function ErrorNote({ error, onRetry }) {
 }
 
 export function StarButton({ active, onClick, label }) {
+  // Guests have nowhere to save a favorite, so they get no star rather than a
+  // button that quietly does nothing.
+  if (!onClick) return null
   return (
     <button
       className={`star${active ? " star--on" : ""}`}

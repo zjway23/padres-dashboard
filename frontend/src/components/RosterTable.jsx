@@ -100,7 +100,7 @@ function BattingTable({ players, onToggleFavorite, loading }) {
                 <StarButton
                   active={player.favorited}
                   label={player.name}
-                  onClick={() => onToggleFavorite(player)}
+                  onClick={onToggleFavorite && (() => onToggleFavorite(player))}
                 />
               </td>
               <td className="col-name">{player.name}</td>
@@ -128,7 +128,7 @@ function PitchingTable({ pitchers, onToggleFavorite, loading }) {
         <StarButton
           active={player.favorited}
           label={player.name}
-          onClick={() => onToggleFavorite(player)}
+          onClick={onToggleFavorite && (() => onToggleFavorite(player))}
         />
       </td>
       <td className="col-name">{player.name}</td>

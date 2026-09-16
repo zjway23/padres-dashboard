@@ -16,6 +16,7 @@ const TABS = [
   { label: "Team", value: "team" },
   { label: "Favorites", value: "favorites" },
   { label: "Bullpen", value: "bullpen" },
+  { label: "Injury Watch", value: "injuries" },
   { label: "Playoff Push", value: "playoff" },
 ]
 
@@ -42,6 +43,7 @@ function ChipRow({ options, value, onChange, renderChip }) {
 export default function Settings({
   favoriteTeam, onTeamChange, onClose, onLogout,
   timezone, onTimezoneChange, defaultTab, onDefaultTabChange, user,
+  isGuest = false, canSignIn = true,
 }) {
   // Escape closes the dialog, matching the backdrop click.
   useEffect(() => {
@@ -100,13 +102,21 @@ export default function Settings({
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
           <div style={{ minWidth: 0 }}>
-            <div className="muted" style={{ fontSize: 11 }}>Signed in as</div>
+            <div className="muted" style={{ fontSize: 11 }}>
+              {isGuest ? "Session" : "Signed in as"}
+            </div>
             <div style={{ fontSize: 13, overflow: "hidden", textOverflow: "ellipsis" }}>
-              {user?.email || user?.displayName || "—"}
+              {isGuest ? "Guest — saved in this browser only" : (user?.email || "Not signed in")}
             </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button className="btn" onClick={onLogout}>Log out</button>
+            {/* A guest has no session to end - the useful action is signing in,
+                and that is only worth offering where sign-in is configured. */}
+            {(!isGuest || canSignIn) && (
+              <button className="btn" onClick={onLogout}>
+                {isGuest ? "Sign in" : "Log out"}
+              </button>
+            )}
             <button className="btn btn--accent" onClick={onClose}>Done</button>
           </div>
         </div>

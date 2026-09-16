@@ -601,6 +601,213 @@ table.data tr.is-me td.col-name { color: var(--accent); font-weight: 650; }
 .legend__item { display: inline-flex; align-items: center; gap: 6px; }
 .legend__swatch { width: 9px; height: 9px; border-radius: 2px; }
 
+.config-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 12px;
+  margin-bottom: 14px;
+  border-radius: var(--r-md);
+  background: var(--warning-soft);
+  border: 1px solid rgba(250, 178, 25, 0.28);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.config-note > span:first-child { color: var(--warning); font-size: 9px; line-height: 1.8; }
+.config-note code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--surface-inset);
+  font-size: 11.5px;
+}
+/* Guest mode is a normal way to use the app, not a misconfiguration, so it
+   borrows the layout but not the warning tone. */
+.config-note--info {
+  background: var(--surface-inset);
+  border-color: var(--border);
+}
+.config-note--info > span:first-child { color: var(--accent); }
+
+.config-note__action {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
+/* ─── Injury watch ────────────────────────────────────────────────────────── */
+
+.injury-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.injury-summary__tile {
+  padding: 11px 13px;
+  border-radius: var(--r-md);
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--text-muted);
+}
+.injury-summary__tile--regular     { border-left-color: var(--good); }
+.injury-summary__tile--postseason  { border-left-color: var(--warning); }
+.injury-summary__tile--next_season { border-left-color: var(--critical); }
+
+.injury-summary__count {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.injury-summary__count > span { font-size: 12px; color: var(--text-muted); }
+.injury-summary__label { margin-top: 1px; font-size: 12.5px; font-weight: 650; }
+.injury-summary__blurb { margin-top: 3px; font-size: 11px; color: var(--text-muted); line-height: 1.4; }
+
+.injury-group { margin-bottom: 20px; }
+
+.injury-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  gap: 12px;
+}
+
+.injury-card {
+  padding: 13px 14px;
+  border-radius: var(--r-md);
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--text-muted);
+}
+.injury-card--regular     { border-left-color: var(--good); }
+.injury-card--postseason  { border-left-color: var(--warning); }
+.injury-card--next_season { border-left-color: var(--critical); }
+
+.injury-card__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.injury-card__name { font-size: 14px; font-weight: 650; }
+.injury-card__pos { margin-left: 6px; font-size: 11px; color: var(--text-muted); font-weight: 600; }
+
+.injury-card__injury {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.injury-readiness {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 9px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 650;
+}
+.injury-readiness > span { font-size: 10px; line-height: 1; }
+.injury-readiness--rehabbing { background: var(--good-soft); color: #4cd44c; }
+.injury-readiness--eligible  { background: var(--accent-soft); color: var(--accent); }
+.injury-readiness--on_clock  { background: var(--warning-soft); color: var(--warning); }
+.injury-readiness--stalled,
+.injury-readiness--shut_down { background: var(--critical-soft); color: #ef6b6b; }
+
+/* Four labelled facts, the ones you'd actually ask about a hurt player. */
+.injury-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 10px;
+  margin: 11px 0 0;
+}
+.injury-facts dt {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.injury-facts dd {
+  margin: 1px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.injury-facts__open { color: var(--accent); }
+.injury-facts__est { text-transform: none; letter-spacing: 0; font-style: italic; }
+
+.injury-card__detail {
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.injury-card__stats { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+.injury-card__nostats { margin-top: 10px; font-size: 11.5px; color: var(--text-muted); }
+
+.injury-timeline { margin-top: 10px; }
+.injury-timeline summary {
+  font-size: 11.5px;
+  font-weight: 650;
+  color: var(--text-muted);
+  cursor: pointer;
+  list-style-position: outside;
+}
+.injury-timeline summary:hover { color: var(--text-secondary); }
+.injury-timeline ul { margin: 8px 0 0; padding: 0; list-style: none; }
+.injury-timeline li {
+  display: flex;
+  gap: 9px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+.injury-timeline li:last-child { border-bottom: none; }
+.injury-timeline__date {
+  flex-shrink: 0;
+  width: 46px;
+  color: var(--accent);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.injury-typical {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 7px;
+  margin-top: 9px;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  background: var(--surface-raised);
+  font-size: 11.5px;
+}
+.injury-typical__head {
+  width: 100%;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.injury-typical__range { font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.injury-typical__n { color: var(--text-muted); }
+.injury-typical__standing { width: 100%; margin-top: 2px; color: var(--text-secondary); }
+.injury-typical__standing--beyond { color: var(--warning); }
+
 /* ─── Player cards (favorites) ────────────────────────────────────────────── */
 
 .player-card { margin-bottom: 14px; }
